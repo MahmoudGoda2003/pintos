@@ -578,15 +578,6 @@ allocate_tid (void)
 
   return tid;
 }
-/* Returns true if value A is less than value B, false
-   otherwise. */
-bool timeSort (const struct list_elem *a_, const struct list_elem *b_, void *aux UNUSED)
-{
-    const struct thread *a = list_entry (a_, struct thread, timer_element);
-    const struct thread *b = list_entry (b_, struct thread, timer_element);
-
-    return a->wakeUpTime < b->wakeUpTime;
-}
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
