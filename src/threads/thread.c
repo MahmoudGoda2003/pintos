@@ -76,7 +76,7 @@ bool
 compare_less_priority(struct list_elem *elem1, struct list_elem *elem2){
     int t1_priority = list_entry (elem1, struct thread, elem)->priority;
     int t2_priority = list_entry (elem2, struct thread, elem)->priority;
-    printf("----------------------------------------- Reached\n");
+//    printf("----------------------------------------- Reached\n");
     return t1_priority > t2_priority;
 }
 
@@ -209,7 +209,9 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
+  struct thread* curr = thread_current();
+  if(t->priority > curr->priority)
+      thread_yield();
   return tid;
 }
 
@@ -240,6 +242,7 @@ thread_block (void)
 void
 thread_unblock (struct thread *t) 
 {
+//    printf("Entered thread_unblock\n");
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
@@ -250,10 +253,12 @@ thread_unblock (struct thread *t)
   list_insert_ordered(&ready_list, &t->elem, &compare_less_priority, NULL);
   t->status = THREAD_READY;
 
-  struct thread* curr = thread_current();
-//  if(t->priority > curr->priority)
-//    thread_yield();
   intr_set_level (old_level);
+//    struct thread* curr = thread_current();
+//    if(t->priority > curr->priority)
+//        thread_yield();
+//    printf("Leaving thread_unblock\n");
+
 }
 
 /*
@@ -362,7 +367,19 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+//    printf("The new priority is: %d\n", new_priority);
+    enum intr_level old_level;
+    old_level = intr_disable ();
+//    printf("Before Setting the priority: %d\n", thread_current()->priority);
   thread_current ()->priority = new_priority;
+  if(!list_empty (&ready_list)) {
+      struct thread *topThread = list_entry(list_front(&ready_list),
+      struct thread, elem);
+      if (new_priority < topThread->priority)
+          thread_yield();
+  }
+    intr_set_level(old_level);
+
 }
 
 /* Returns the current thread's priority. */
