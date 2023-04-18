@@ -24,6 +24,8 @@ static int64_t ticks;
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
 
+struct list sleeping;
+
 static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
@@ -37,6 +39,7 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  list_init (&sleeping);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -89,11 +92,16 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
-
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+  // disable interpret
+  enum intr_level old_level = intr_disable();
+
+  struct thread *current = thread_current();
+  current->wakeTime = timer_ticks() + ticks;
+  list_insert_ordered(&sleeping, &current->elem, compare_ticks, NULL);
+  thread_block();
+
+  intr_set_level (old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -172,6 +180,19 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+  while(!list_empty(&sleeping)){
+
+    struct list_elem *head = list_front(&sleeping);
+    struct thread *head_thread = list_entry(head, struct thread, elem);
+
+    if(head_thread->wakeTime >ticks){
+        break;
+    }
+
+    list_remove(head);
+    thread_unblock(head_thread);
+  }
+
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

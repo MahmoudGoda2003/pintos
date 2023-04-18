@@ -578,6 +578,14 @@ allocate_tid (void)
 
   return tid;
 }
+
+bool compare_ticks(struct list_elem *first, struct list_elem *second, void *aux){
+
+    struct thread *thread1 = list_entry (first, struct thread, elem);
+    struct thread *thread2 = list_entry (second, struct thread, elem);
+
+    return thread1->wakeTime < thread2->wakeTime;
+}
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
