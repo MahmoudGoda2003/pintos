@@ -73,12 +73,13 @@ static tid_t allocate_tid (void);
 
 // TODO: Comment
 bool
-compare_less_priority(struct list_elem *elem1, struct list_elem *elem2){
-    int t1_priority = list_entry (elem1, struct thread, elem)->priority;
-    int t2_priority = list_entry (elem2, struct thread, elem)->priority;
+compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux){
+    struct thread * t1 = list_entry (elem1, struct thread, elem);
+    struct thread * t2 = list_entry (elem2, struct thread, elem);
 //    printf("----------------------------------------- Reached\n");
-    return t1_priority > t2_priority;
+    return t1->priority > t2->priority;
 }
+
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -250,7 +251,7 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
 //  list_push_back (&ready_list, &t->elem);
-  list_insert_ordered(&ready_list, &t->elem, &compare_less_priority, NULL);
+  list_insert_ordered(&ready_list, &t->elem, compare_less_priority, NULL);
   t->status = THREAD_READY;
 
   intr_set_level (old_level);
@@ -338,7 +339,7 @@ thread_yield (void)
   old_level = intr_disable ();
 
   if (cur != idle_thread)
-      list_insert_ordered(&ready_list, &cur->elem, &compare_less_priority, NULL);
+      list_insert_ordered(&ready_list, &cur->elem, compare_less_priority, NULL);
 //    list_push_back (&ready_list, &cur->elem);
 
   cur->status = THREAD_READY;

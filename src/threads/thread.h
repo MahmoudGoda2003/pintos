@@ -140,6 +140,6 @@ int thread_get_load_avg (void);
 
 /* Implemented Functions */
 bool compare_ticks(struct list_elem *first, struct list_elem *second, void *aux);
-bool compare_less_priority(struct list_elem *elem1, struct list_elem *elem2);
+bool compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux);
 
 #endif /* threads/thread.h */
