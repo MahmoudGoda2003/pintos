@@ -71,6 +71,15 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+// TODO: Comment
+bool
+compare_less_priority(struct list_elem *elem1, struct list_elem *elem2){
+    int t1_priority = list_entry (elem1, struct thread, elem)->priority;
+    int t2_priority = list_entry (elem2, struct thread, elem)->priority;
+    printf("----------------------------------------- Reached\n");
+    return t1_priority > t2_priority;
+}
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -237,10 +246,25 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+//  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, &compare_less_priority, NULL);
   t->status = THREAD_READY;
+
+  struct thread* curr = thread_current();
+//  if(t->priority > curr->priority)
+//    thread_yield();
   intr_set_level (old_level);
 }
+
+/*
+bool list_less_comp(const struct list_elem* a,
+                    const struct list_elem* b, void* aux UNUSED)
+{
+    const int a_member = (list_entry(a, struct thread, elem)->member;
+    const int a_member = (list_entry(b, struct thread, elem)->member;
+    return a_member < b_member;
+}
+*/
 
 /* Returns the name of the running thread. */
 const char *
@@ -307,8 +331,11 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+
+  if (cur != idle_thread)
+      list_insert_ordered(&ready_list, &cur->elem, &compare_less_priority, NULL);
+//    list_push_back (&ready_list, &cur->elem);
+
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);

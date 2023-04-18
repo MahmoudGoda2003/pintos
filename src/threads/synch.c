@@ -69,6 +69,8 @@ sema_down (struct semaphore *sema)
   while (sema->value == 0) 
     {
       list_push_back (&sema->waiters, &thread_current ()->elem);
+//      list_insert_ordered(&sema->waiters, &thread_current ()->elem, &compare_less_priority, NULL);
+//      printf("------------------------------- List size: %lu\n", list_size(&sema->waiters) );
       thread_block ();
     }
   sema->value--;
@@ -296,6 +298,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   
   sema_init (&waiter.semaphore, 0);
   list_push_back (&cond->waiters, &waiter.elem);
+//  list_insert_ordered(&cond->waiters, &waiter.elem, &compare_less_priority, NULL);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
