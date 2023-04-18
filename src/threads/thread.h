@@ -89,6 +89,9 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
+    int64_t wakeUpTime;                 /* Time till wakeup */
+    struct semaphore *timer;            /* semaphore to block on it */
+    struct semaphore *timer_element;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -137,5 +140,5 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
+bool timeSort (const struct list_elem *a_, const struct list_elem *b_, void *aux UNUSED);
 #endif /* threads/thread.h */
