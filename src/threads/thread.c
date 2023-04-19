@@ -361,20 +361,19 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-    bool yield = false;
-    thread_current ()->priority = new_priority;
+  bool yield = false;
+  thread_current ()->priority = new_priority;
 
-    enum intr_level old_level = intr_disable ();
-    if(!list_empty (&ready_list)) {
-        struct thread *topThread = list_entry(list_front(&ready_list), struct thread, elem);
-        if (new_priority < topThread->priority)
-            yield = true;
-    }
-    intr_set_level (old_level);
+  enum intr_level old_level = intr_disable ();
+  if(!list_empty (&ready_list)) {
+      struct thread *topThread = list_entry(list_front(&ready_list), struct thread, elem);
+      if (new_priority < topThread->priority)
+          yield = true;
+  }
+  intr_set_level (old_level);
 
-    if (yield)
-        thread_yield ();
-
+  if (yield)
+      thread_yield ();
 }
 
 /* Returns the current thread's priority. */
