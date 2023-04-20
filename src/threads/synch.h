@@ -23,7 +23,6 @@ struct lock
     struct thread *holder;      /* Thread holding lock (for debugging). */
     struct semaphore semaphore; /* Binary semaphore controlling access. */
     int priority;
-    struct list_elem elem;
   };
 
 void lock_init (struct lock *);
@@ -49,7 +48,5 @@ void cond_broadcast (struct condition *, struct lock *);
    optimization barrier.  See "Optimization Barriers" in the
    reference guide for more information.*/
 #define barrier() asm volatile ("" : : : "memory")
-
-bool compare_locks_priority(struct list_elem *lock1, struct list_elem *lock2, void *aux);
 
 #endif /* threads/synch.h */
