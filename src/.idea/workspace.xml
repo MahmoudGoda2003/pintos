@@ -14,12 +14,11 @@
   <component name="ChangeListManager">
     <list default="true" id="9229b1c0-ab87-4e09-9bca-66621a850654" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/../.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/threads/synch.c" beforeDir="false" afterPath="$PROJECT_DIR$/threads/synch.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/threads/synch.h" beforeDir="false" afterPath="$PROJECT_DIR$/threads/synch.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/threads/thread.c" beforeDir="false" afterPath="$PROJECT_DIR$/threads/thread.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/threads/thread.h" beforeDir="false" afterPath="$PROJECT_DIR$/threads/thread.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/Pintos.pm" beforeDir="false" afterPath="$PROJECT_DIR$/utils/Pintos.pm" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/pintos" beforeDir="false" afterPath="$PROJECT_DIR$/utils/pintos" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -100,7 +99,7 @@
       <updated>1681832936151</updated>
       <workItem from="1681832937170" duration="1377000" />
       <workItem from="1681839536574" duration="20842000" />
-      <workItem from="1681865925477" duration="7224000" />
+      <workItem from="1681865925477" duration="13750000" />
     </task>
     <servers />
   </component>
