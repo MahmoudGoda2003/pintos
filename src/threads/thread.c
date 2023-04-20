@@ -362,17 +362,27 @@ void
 thread_set_priority (int new_priority)
 {
   bool yield = false;
-
-  /* why not to update old_priority and priority when higher?? */
-  if (thread_current ()->priority == thread_current ()->old_priority) {
-      thread_current()->priority = new_priority;
-      thread_current()->old_priority = new_priority;
-  } else {
-      if (new_priority < thread_current()->priority)
-          thread_current()->old_priority = new_priority;
-  }
-
   enum intr_level old_level = intr_disable ();
+    struct thread *t = thread_current();
+  t->old_priority = new_priority;
+
+    int old_priority = t->old_priority;
+
+    if (list_empty (&t->locks_list))
+        t->priority = old_priority;
+    else
+    {
+        int lock_priority = list_entry (list_max (&t->locks_list, compare_locks_priority, NULL),
+        struct lock, elem)->priority;
+
+        if (old_priority > lock_priority)
+            t->priority = old_priority;
+        else
+            t->priority = lock_priority;
+    }
+    intr_set_level (old_level);
+
+  old_level = intr_disable ();
   if(!list_empty (&ready_list)) {
       struct thread *topThread = list_entry(list_front(&ready_list), struct thread, elem);
       if (new_priority < topThread->priority)
@@ -506,8 +516,8 @@ init_thread (struct thread *t, const char *name, int priority)
     t->stack = (uint8_t *) t + PGSIZE;
     t->priority = priority;
     t->old_priority = priority;
-    t->lock_holder = NULL;
-    list_init(&locks_list);
+    t->waiting_on_lock = NULL;
+    list_init(&(t->locks_list));
     t->magic = THREAD_MAGIC;
 
     old_level = intr_disable ();
