@@ -72,11 +72,11 @@ static bool is_thread (struct thread *) UNUSED;
                                         static tid_t allocate_tid (void);
 
 // TODO: Comment
-        bool
-        compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux){
+bool
+compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux){
     struct thread * t1 = list_entry (elem1, struct thread, elem);
     struct thread * t2 = list_entry (elem2, struct thread, elem);
-//    printf("----------------------------------------- Reached\n");
+    //    printf("----------------------------------------- Reached\n");
     return t1->priority > t2->priority;
 }
 
@@ -122,6 +122,20 @@ thread_start (void)
 
     /* Wait for the idle thread to initialize idle_thread. */
     sema_down (&idle_started);
+}
+
+void
+notifyChangeInLocksPriority(struct thread* t)
+{
+    if(list_empty(&(t->locks_list))){
+        t->priority = t->base_priority;
+        return;
+    }
+    int maxPriorityInWaiters = (list_entry(list_front(&(t->locks_list)), struct lock, lock_position))->semaphore.greatestPriorityInWaiters;
+    if(maxPriorityInWaiters > t->priority)
+        t->priority = maxPriorityInWaiters;
+    else
+        t->priority = t->base_priority;
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -497,6 +511,11 @@ init_thread (struct thread *t, const char *name, int priority)
     strlcpy (t->name, name, sizeof t->name);
     t->stack = (uint8_t *) t + PGSIZE;
     t->priority = priority;
+    t->base_priority = t->priority;
+
+    // Implemented
+    list_init(&(t->locks_list));
+
     t->magic = THREAD_MAGIC;
 
     old_level = intr_disable ();

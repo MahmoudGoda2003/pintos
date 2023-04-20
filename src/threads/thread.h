@@ -92,6 +92,8 @@ struct thread
     int64_t wakeTime;                   /* tick need until wakeup*/
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+    struct list locks_list;
+    int base_priority;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

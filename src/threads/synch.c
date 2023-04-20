@@ -64,6 +64,7 @@ sema_down (struct semaphore *sema)
     {
 //      list_push_back (&sema->waiters, &thread_current ()->elem);
         list_insert_ordered(&sema->waiters, &thread_current ()->elem, compare_less_priority, NULL);
+        lock_update_greatest_priority_in_waiters(sema);
         thread_block ();
     }
     sema->value--;
@@ -109,7 +110,7 @@ sema_up (struct semaphore *sema)
   old_level = intr_disable ();
   if (!list_empty (&sema->waiters)) {
     struct thread *t = list_entry(list_pop_front(&sema->waiters),
-    struct thread, elem);
+        struct thread, elem);
     thread_unblock(t);
 
     if (t->priority > thread_current ()->priority)
@@ -182,6 +183,12 @@ lock_init (struct lock *lock)
     sema_init (&lock->semaphore, 1);
 }
 
+bool compare_locks_priority(struct list_elem *first, struct list_elem *second, void *aux){
+    struct semaphore *sema1 = list_entry (first, struct lock, lock_position)->semaphore;
+    struct semaphore *sema2 = list_entry (second, struct lock, lock_position)->semaphore;
+    return sema1->greatestPriorityInWaiters > sema2->greatestPriorityInWaiters;
+}
+
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
    thread.
@@ -196,8 +203,22 @@ lock_acquire (struct lock *lock)
     ASSERT (!intr_context ());
     ASSERT (!lock_held_by_current_thread (lock));
 
+
     sema_down (&lock->semaphore);
     lock->holder = thread_current ();
+
+    list_insert_ordered(&(lock->holder->locks_list), &(lock_position), &compare_locks_priority, NULL);
+
+}
+
+void
+lock_update_greatest_priority_in_waiters(struct semaphore* sema)
+{
+    struct thread *t = list_entry(list_front(&(sema->waiters),
+            struct thread, elem));
+    // TODO: Sort or pop & push ??
+    list_sort(&t->locks_list, &compare_locks_priority, NULL);
+    sema->greatestPriorityInWaiters = t->priority;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
