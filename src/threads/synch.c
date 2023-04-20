@@ -179,6 +179,7 @@ lock_init (struct lock *lock)
     ASSERT (lock != NULL);
 
     lock->holder = NULL;
+    lock->priority = 0;
     sema_init (&lock->semaphore, 1);
 }
 
@@ -189,12 +190,37 @@ lock_init (struct lock *lock)
    interrupt handler.  This function may be called with
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
+bool compare_lock_priority(struct lock *lock1, struct lock *lock2, void *aux){
+    return lock1->priority > lock2->priority;
+}
+
+void
+priority_donate(struct thread* t){
+    if (t->lock_holder == NULL || t->priority < t->lock_holder->priority)
+        return;
+    t->priority = t->lock_holder->priority;
+    priority_donate(t->lock_holder);
+}
+
 void
 lock_acquire (struct lock *lock)
 {
     ASSERT (lock != NULL);
     ASSERT (!intr_context ());
     ASSERT (!lock_held_by_current_thread (lock));
+
+    /* insert lock ordered according to priority to get the next donated priority on releasing a resource in O(1) */
+    push_insert_ordered(&(thread_current ()->locks_list), &lock, compare_locks_priority(), NULL);
+
+    /* set priority of lock whenever thread has higher priority */
+    if (lock->priority < thread_current ()->priority)) {
+        lock->priority = thread_current ()->priority;
+        /* check for lock holder to donate priority */
+        if (lock->holder != NULL) {
+            thread_current ()->lock_holder = lock->holder;
+            priority_donate(thread_current());
+        }
+    }
 
     sema_down (&lock->semaphore);
     lock->holder = thread_current ();
@@ -229,7 +255,24 @@ lock_release (struct lock *lock)
     ASSERT (lock != NULL);
     ASSERT (lock_held_by_current_thread (lock));
 
+    /* remove current lock from thread lock list */
+    struct thread *cur = thread_current ();
+    list_pop_front(&(cur->lock_list));
+
+    /* check if there remains any locks in the lock list to check if it will donate its priority to the thread after releasing */
+    if (!list_empty(&(cur->lock_list))) {
+        list_elem head = list_head(&(cur->lock_list)));
+        while(!is_tail(&head)){
+            printf("gffdggfddfg: %d", &head->priority);
+            head = list_next(&head);
+        }
+        if (cur->priority < list_front(cur->lock_list)->prioriy))
+            cur->priority = list_front(cur->lock_list)->prioriy;
+    } else
+        cur->priority = cur->old_priority;
+
     lock->holder = NULL;
+    lock->priority = 0;
     sema_up (&lock->semaphore);
 }
 
@@ -249,7 +292,6 @@ struct semaphore_elem
 {
     struct list_elem elem;              /* List element. */
     struct semaphore semaphore;         /* This semaphore. */
-    int priority;
 };
 
 /* Initializes condition variable COND.  A condition variable
@@ -298,7 +340,6 @@ cond_wait (struct condition *cond, struct lock *lock)
 
     sema_init (&waiter.semaphore, 0);
 
-    waiter.priority = thread_current() -> priority;
     list_insert_ordered (&cond->waiters, &waiter.elem, compare_semaphore_priority, NULL);
 
     lock_release (lock);

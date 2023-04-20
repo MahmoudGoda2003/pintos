@@ -362,7 +362,15 @@ void
 thread_set_priority (int new_priority)
 {
   bool yield = false;
-  thread_current ()->priority = new_priority;
+
+  /* why not to update old_priority and priority when higher?? */
+  if (thread_current ()->priority == thread_current ()->old_priority) {
+      thread_current()->priority = new_priority;
+      thread_current()->old_priority = new_priority;
+  } else {
+      if (new_priority < thread_current()->priority)
+          thread_current()->old_priority = new_priority;
+  }
 
   enum intr_level old_level = intr_disable ();
   if(!list_empty (&ready_list)) {
@@ -497,6 +505,9 @@ init_thread (struct thread *t, const char *name, int priority)
     strlcpy (t->name, name, sizeof t->name);
     t->stack = (uint8_t *) t + PGSIZE;
     t->priority = priority;
+    t->old_priority = priority;
+    t->lock_holder = NULL;
+    list_init(&locks_list);
     t->magic = THREAD_MAGIC;
 
     old_level = intr_disable ();
