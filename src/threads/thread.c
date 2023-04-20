@@ -127,15 +127,16 @@ thread_start (void)
 void
 notifyChangeInLocksPriority(struct thread* t)
 {
+    list_sort(&(t->locks_list), &(compare_locks_priority), NULL);
     if(list_empty(&(t->locks_list))){
         t->priority = t->base_priority;
         return;
     }
     int maxPriorityInWaiters = (list_entry(list_front(&(t->locks_list)), struct lock, lock_position))->semaphore.greatestPriorityInWaiters;
-    if(maxPriorityInWaiters > t->priority)
-        t->priority = maxPriorityInWaiters;
-    else
+    if(t->base_priority > maxPriorityInWaiters)
         t->priority = t->base_priority;
+    else
+        t->priority = maxPriorityInWaiters;
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -376,7 +377,9 @@ void
 thread_set_priority (int new_priority)
 {
   bool yield = false;
-  thread_current ()->priority = new_priority;
+  thread_current()->base_priority = new_priority;
+  notifyChangeInLocksPriority(thread_current());
+//  thread_current ()->priority = new_priority;
 
   enum intr_level old_level = intr_disable ();
   if(!list_empty (&ready_list)) {
@@ -572,6 +575,7 @@ thread_schedule_tail (struct thread *prev)
 
     /* Mark us as running. */
     cur->status = THREAD_RUNNING;
+    notifyChangeInLocksPriority(cur);
 
     /* Start new time slice. */
     thread_ticks = 0;

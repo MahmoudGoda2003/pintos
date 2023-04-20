@@ -184,9 +184,9 @@ lock_init (struct lock *lock)
 }
 
 bool compare_locks_priority(struct list_elem *first, struct list_elem *second, void *aux){
-    struct semaphore *sema1 = list_entry (first, struct lock, lock_position)->semaphore;
-    struct semaphore *sema2 = list_entry (second, struct lock, lock_position)->semaphore;
-    return sema1->greatestPriorityInWaiters > sema2->greatestPriorityInWaiters;
+    struct lock *l1 = list_entry (first, struct lock, lock_position);
+    struct lock *l2 = list_entry (second, struct lock, lock_position);
+    return l1->semaphore.greatestPriorityInWaiters > l2->semaphore.greatestPriorityInWaiters;
 }
 
 /* Acquires LOCK, sleeping until it becomes available if
@@ -205,19 +205,18 @@ lock_acquire (struct lock *lock)
 
 
     sema_down (&lock->semaphore);
-    lock->holder = thread_current ();
 
-    list_insert_ordered(&(lock->holder->locks_list), &(lock_position), &compare_locks_priority, NULL);
+    lock->holder = thread_current ();
+    list_insert_ordered(&(lock->holder->locks_list), &(lock->lock_position), &compare_locks_priority, NULL);
 
 }
 
 void
 lock_update_greatest_priority_in_waiters(struct semaphore* sema)
 {
-    struct thread *t = list_entry(list_front(&(sema->waiters),
-            struct thread, elem));
+    struct thread *t = list_entry(list_front(&(sema->waiters)), struct thread, elem);
     // TODO: Sort or pop & push ??
-    list_sort(&t->locks_list, &compare_locks_priority, NULL);
+//    list_sort(&t->locks_list, &compare_locks_priority, NULL);
     sema->greatestPriorityInWaiters = t->priority;
 }
 
@@ -250,6 +249,8 @@ lock_release (struct lock *lock)
     ASSERT (lock != NULL);
     ASSERT (lock_held_by_current_thread (lock));
 
+    list_remove(&(lock->lock_position));
+    notifyChangeInLocksPriority(lock->holder);
     lock->holder = NULL;
     sema_up (&lock->semaphore);
 }
