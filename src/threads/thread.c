@@ -71,12 +71,11 @@ static bool is_thread (struct thread *) UNUSED;
                                         void thread_schedule_tail (struct thread *prev);
                                         static tid_t allocate_tid (void);
 
-// TODO: Comment
-        bool
-        compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux){
+
+bool
+compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux){
     struct thread * t1 = list_entry (elem1, struct thread, elem);
     struct thread * t2 = list_entry (elem2, struct thread, elem);
-//    printf("----------------------------------------- Reached\n");
     return t1->priority > t2->priority;
 }
 
@@ -124,6 +123,22 @@ thread_start (void)
     sema_down (&idle_started);
 }
 
+void
+notifyChangeInLocksPriority(struct thread* t)
+{
+    if(!list_empty(&(t->locks_list))) {
+        int maxPriorityInWaiters = (list_entry(list_front(&(t->locks_list)),
+        struct lock, lock_position))->greatestPriorityInWaiters;
+        if (t->base_priority > maxPriorityInWaiters)
+            t->priority = t->base_priority;
+        else
+            t->priority = maxPriorityInWaiters;
+    }
+    else{
+        t->priority = t->base_priority;
+    }
+    updateNestedPriority(t);
+}
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
@@ -361,37 +376,22 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  bool yield = false;
-  enum intr_level old_level = intr_disable ();
-    struct thread *t = thread_current();
-  t->old_priority = new_priority;
+    bool yield = false;
+    struct thread *cur = thread_current();
+    cur->base_priority = new_priority;
+    notifyChangeInLocksPriority(cur);
+//  thread_current ()->priority = new_priority;
 
-    int old_priority = t->old_priority;
-
-    if (list_empty (&t->locks_list))
-        t->priority = old_priority;
-    else
-    {
-        int lock_priority = list_entry (list_max (&t->locks_list, compare_locks_priority, NULL),
-        struct lock, elem)->priority;
-
-        if (old_priority > lock_priority)
-            t->priority = old_priority;
-        else
-            t->priority = lock_priority;
+    enum intr_level old_level = intr_disable ();
+    if(!list_empty (&ready_list)) {
+        struct thread *topThread = list_entry(list_front(&ready_list), struct thread, elem);
+        if (new_priority < topThread->priority)
+            yield = true;
     }
     intr_set_level (old_level);
 
-  old_level = intr_disable ();
-  if(!list_empty (&ready_list)) {
-      struct thread *topThread = list_entry(list_front(&ready_list), struct thread, elem);
-      if (new_priority < topThread->priority)
-          yield = true;
-  }
-  intr_set_level (old_level);
-
-  if (yield)
-      thread_yield ();
+    if (yield)
+        thread_yield ();
 }
 
 /* Returns the current thread's priority. */
@@ -515,8 +515,9 @@ init_thread (struct thread *t, const char *name, int priority)
     strlcpy (t->name, name, sizeof t->name);
     t->stack = (uint8_t *) t + PGSIZE;
     t->priority = priority;
-    t->old_priority = priority;
-    t->waiting_on_lock = NULL;
+    t->base_priority = t->priority;
+    t->lock_waiting = NULL;
+    // Implemented
     list_init(&(t->locks_list));
     t->magic = THREAD_MAGIC;
 
