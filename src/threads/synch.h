@@ -26,6 +26,7 @@ struct lock
     int greatestPriorityInWaiters;
 };
 
+
 void lock_init (struct lock *);
 void lock_acquire (struct lock *);
 bool lock_try_acquire (struct lock *);
@@ -46,6 +47,7 @@ void cond_broadcast (struct condition *, struct lock *);
 // Implemented
 void lock_update_greatest_priority_in_waiters(struct semaphore* sema);
 bool compare_locks_priority(struct list_elem *first, struct list_elem *second, void *aux);
+
 
 
 /* Optimization barrier.

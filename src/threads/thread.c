@@ -71,7 +71,6 @@ static bool is_thread (struct thread *) UNUSED;
                                         void thread_schedule_tail (struct thread *prev);
                                         static tid_t allocate_tid (void);
 
-
 bool
 compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux){
     struct thread * t1 = list_entry (elem1, struct thread, elem);
