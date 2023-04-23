@@ -87,8 +87,32 @@ void calc_load_avg(){
     load_avg = add(multiply(divide(intToFixed(59),intToFixed(60)), load_avg), 
     multiply(divide(intToFixed(1),intToFixed(60)), intToFixed(ready_count)));
     intr_set_level(old_level);
-    // printf("################### the ready count is %d\n",ready_count);
-    // printf("################### calculate the load_avg is %d\n",fixedToInt(load_avg));
+}
+
+void calc_recent_cpu(struct thread *t, void* aux){
+    t->recent_cpu = add(multiply(divide(multiply(intToFixed(2),load_avg),
+    add(multiply(intToFixed(2),load_avg),intToFixed(1))), t->recent_cpu), intToFixed(t->nice));
+}
+
+void recalculate_recent_cpu_all(){
+    enum intr_level old_level = intr_disable(); 
+    // printf("##### the load avg is %d\n",thread_get_load_avg());
+    // printf("######### the current thread recent cpu before recalc %d\n",fixedToInt(thread_current()->recent_cpu));
+    thread_foreach(calc_recent_cpu,NULL);
+    // printf("######### the current thread recent cpu after recalc %d\n",fixedToInt(thread_current()->recent_cpu));
+    intr_set_level(old_level);
+    // printf("the current recent_cpu is %d\n",fixedToInt(thread_current()->recent_cpu));
+}
+
+void calc_priority(struct thread *t){
+    t->priority = subtract(subtract(intToFixed(63),divide(t->recent_cpu,intToFixed(4))),
+                            multiply(intToFixed(t->nice),intToFixed(2)));
+}
+
+void recalculate_priority_all(){
+    enum intr_level old_level = intr_disable(); 
+    thread_foreach(calc_priority,NULL);
+    intr_set_level(old_level);
 }
 
 /* Initializes the threading system by transforming the code
@@ -115,8 +139,6 @@ thread_init (void)
     init_thread (initial_thread, "main", PRI_DEFAULT);
     initial_thread->status = THREAD_RUNNING;
     initial_thread->tid = allocate_tid ();
-    // printf("##################### the init is here\n");
-    // tik_100 = 0;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -157,13 +179,22 @@ notifyChangeInLocksPriority(struct thread* t)
 void
 thread_tick (void)
 {
-    if(thread_mlfqs){
-        if(timer_ticks() % 107 == 0){//tik_100 == 100){
-            calc_load_avg();
-        }
-    }
     struct thread *t = thread_current ();
-
+    if(thread_mlfqs){//TODO you should check that the current is not he idle
+        t->recent_cpu = add(t->recent_cpu ,intToFixed(1));
+        // printf("the new recent cpu is %d\n",fixedToInt(t->recent_cpu));
+    }
+    if(thread_mlfqs){
+        if(timer_ticks() % 100 == 0){//tik_100 == 100){
+            // printf("------------------ the recent cpu will be recalculated here\n");
+            calc_load_avg();
+            // printf("the current thread recent_cpu is %d\n",fixedToInt(thread_current()->recent_cpu));
+        }
+        if(timer_ticks() % 100 == 0)
+            recalculate_recent_cpu_all();
+        if(timer_ticks() % 4 == 0)
+            recalculate_priority_all();
+    }
     /* Update statistics. */
     if (t == idle_thread)
         idle_ticks++;
@@ -241,6 +272,12 @@ thread_create (const char *name, int priority,
     struct thread* curr = thread_current();
     if(t->priority > curr->priority)
         thread_yield();
+    struct thread *cur = thread_current ();
+    if(thread_mlfqs){
+        t->nice = cur->nice;
+        t->recent_cpu = cur->recent_cpu;
+        // printf("##########the new thread recent cpu is %d\n",t->recent_cpu);
+    }
     return tid;
 }
 
@@ -423,15 +460,19 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED)
 {
-    /* Not yet implemented. */
+    struct thread* curr = thread_current();
+    curr->nice = nice;
+    calc_priority(curr);
+    if(!list_empty(&ready_list) && curr->priority<list_entry(list_front(&ready_list), struct thread, elem)->priority)
+        thread_yield();
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void)
 {
-    /* Not yet implemented. */
-    return 0;
+    struct thread* curr = thread_current();
+    return curr->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -445,8 +486,8 @@ thread_get_load_avg (void)
 int
 thread_get_recent_cpu (void)
 {
-    /* Not yet implemented. */
-    return 0;
+    struct thread* curr = thread_current();
+    return fixedToInt(multiply(thread_current()->recent_cpu,intToFixed(100)));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.

@@ -90,6 +90,8 @@ struct thread
     struct list locks_list;             /* list to hold locks which the thread is acquiring */
     int base_priority;                  /* Original priority of the thread */
     struct lock *lock_waiting;
+    int nice;
+    fixedPoint recent_cpu;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
