@@ -83,6 +83,7 @@ compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *au
 
 void calc_load_avg(){
     enum intr_level old_level = intr_disable(); 
+    // TODO change this to a simple code
     int ready_count = ((int)list_size(&ready_list)-1>0?(int)list_size(&ready_list)-1:0) + (thread_current()!=idle_thread?1:0);
     load_avg = add(multiply(divide(intToFixed(59),intToFixed(60)), load_avg), 
     multiply(divide(intToFixed(1),intToFixed(60)), intToFixed(ready_count)));
@@ -96,12 +97,8 @@ void calc_recent_cpu(struct thread *t, void* aux){
 
 void recalculate_recent_cpu_all(){
     enum intr_level old_level = intr_disable(); 
-    // printf("##### the load avg is %d\n",thread_get_load_avg());
-    // printf("######### the current thread recent cpu before recalc %d\n",fixedToInt(thread_current()->recent_cpu));
     thread_foreach(calc_recent_cpu,NULL);
-    // printf("######### the current thread recent cpu after recalc %d\n",fixedToInt(thread_current()->recent_cpu));
     intr_set_level(old_level);
-    // printf("the current recent_cpu is %d\n",fixedToInt(thread_current()->recent_cpu));
 }
 
 void calc_priority(struct thread *t){
