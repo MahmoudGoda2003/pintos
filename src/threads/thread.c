@@ -82,9 +82,13 @@ compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *au
 }
 
 void calc_load_avg(){
+    // int ready_count = ((int)list_size(&ready_list)-1>0?(int)list_size(&ready_list)-1:0) + (thread_current()!=idle_thread?1:0);
+    int ready_count = 0;
+    if(!(thread_current() == idle_thread)){
+        ready_count = list_size(&ready_list)+1;
+    }
     enum intr_level old_level = intr_disable(); 
     // TODO change this to a simple code
-    int ready_count = ((int)list_size(&ready_list)-1>0?(int)list_size(&ready_list)-1:0) + (thread_current()!=idle_thread?1:0);
     load_avg = add(multiply(divide(intToFixed(59),intToFixed(60)), load_avg), 
     multiply(divide(intToFixed(1),intToFixed(60)), intToFixed(ready_count)));
     intr_set_level(old_level);
@@ -271,9 +275,11 @@ thread_create (const char *name, int priority,
         thread_yield();
     struct thread *cur = thread_current ();
     if(thread_mlfqs){
+        // printf("---------------------------nice %d\n", t->nice);
         t->nice = cur->nice;
         t->recent_cpu = cur->recent_cpu;
         // printf("##########the new thread recent cpu is %d\n",t->recent_cpu);
+        // calc_priority(&t);
     }
     return tid;
 }
@@ -457,11 +463,18 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED)
 {
+    // printf("------------------------------ nice %d\n", nice);
+    bool yeild = false;
+    enum intr_level old_level = intr_disable ();
     struct thread* curr = thread_current();
     curr->nice = nice;
     calc_priority(curr);
     if(!list_empty(&ready_list) && curr->priority<list_entry(list_front(&ready_list), struct thread, elem)->priority)
+        yeild = true;
+    intr_set_level (old_level);
+    if(yeild){
         thread_yield();
+    }
 }
 
 /* Returns the current thread's nice value. */
