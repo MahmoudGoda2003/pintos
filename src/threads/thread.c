@@ -11,6 +11,8 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/fixedNumber.c"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -58,6 +60,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+fixedPoint load_avg;
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -78,6 +81,15 @@ compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *au
     return t1->priority > t2->priority;
 }
 
+void calc_load_avg(){
+    enum intr_level old_level = intr_disable(); 
+    int ready_count = ((int)list_size(&ready_list)-1>0?(int)list_size(&ready_list)-1:0) + (thread_current()!=idle_thread?1:0);
+    load_avg = add(multiply(divide(intToFixed(59),intToFixed(60)), load_avg), 
+    multiply(divide(intToFixed(1),intToFixed(60)), intToFixed(ready_count)));
+    intr_set_level(old_level);
+    // printf("################### the ready count is %d\n",ready_count);
+    // printf("################### calculate the load_avg is %d\n",fixedToInt(load_avg));
+}
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -103,6 +115,8 @@ thread_init (void)
     init_thread (initial_thread, "main", PRI_DEFAULT);
     initial_thread->status = THREAD_RUNNING;
     initial_thread->tid = allocate_tid ();
+    // printf("##################### the init is here\n");
+    // tik_100 = 0;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -143,6 +157,11 @@ notifyChangeInLocksPriority(struct thread* t)
 void
 thread_tick (void)
 {
+    if(thread_mlfqs){
+        if(timer_ticks() % 107 == 0){//tik_100 == 100){
+            calc_load_avg();
+        }
+    }
     struct thread *t = thread_current ();
 
     /* Update statistics. */
@@ -419,8 +438,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-    /* Not yet implemented. */
-    return 0;
+    return fixedToInt(multiply(load_avg, intToFixed(100)));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
