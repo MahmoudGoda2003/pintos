@@ -11,6 +11,8 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/fixedNumber.c"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -58,6 +60,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+fixedPoint load_avg;
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -78,6 +81,40 @@ compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *au
     return t1->priority > t2->priority;
 }
 
+void calc_load_avg(){
+    // int ready_count = ((int)list_size(&ready_list)-1>0?(int)list_size(&ready_list)-1:0) + (thread_current()!=idle_thread?1:0);
+    int ready_count = 0;
+    if(!(thread_current() == idle_thread)){
+        ready_count = list_size(&ready_list)+1;
+    }
+    enum intr_level old_level = intr_disable(); 
+    // TODO change this to a simple code
+    load_avg = add(multiply(divide(intToFixed(59),intToFixed(60)), load_avg), 
+    multiply(divide(intToFixed(1),intToFixed(60)), intToFixed(ready_count)));
+    intr_set_level(old_level);
+}
+
+void calc_recent_cpu(struct thread *t, void* aux){
+    t->recent_cpu = add(multiply(divide(multiply(intToFixed(2),load_avg),
+    add(multiply(intToFixed(2),load_avg),intToFixed(1))), t->recent_cpu), intToFixed(t->nice));
+}
+
+void recalculate_recent_cpu_all(){
+    enum intr_level old_level = intr_disable(); 
+    thread_foreach(calc_recent_cpu,NULL);
+    intr_set_level(old_level);
+}
+
+void calc_priority(struct thread *t){
+    t->priority = subtract(subtract(intToFixed(63),divide(t->recent_cpu,intToFixed(4))),
+                            multiply(intToFixed(t->nice),intToFixed(2)));
+}
+
+void recalculate_priority_all(){
+    enum intr_level old_level = intr_disable(); 
+    thread_foreach(calc_priority,NULL);
+    intr_set_level(old_level);
+}
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -144,7 +181,21 @@ void
 thread_tick (void)
 {
     struct thread *t = thread_current ();
-
+    if(thread_mlfqs){//TODO you should check that the current is not he idle
+        t->recent_cpu = add(t->recent_cpu ,intToFixed(1));
+        // printf("the new recent cpu is %d\n",fixedToInt(t->recent_cpu));
+    }
+    if(thread_mlfqs){
+        if(timer_ticks() % 100 == 0){//tik_100 == 100){
+            // printf("------------------ the recent cpu will be recalculated here\n");
+            calc_load_avg();
+            // printf("the current thread recent_cpu is %d\n",fixedToInt(thread_current()->recent_cpu));
+        }
+        if(timer_ticks() % 100 == 0)
+            recalculate_recent_cpu_all();
+        if(timer_ticks() % 4 == 0)
+            recalculate_priority_all();
+    }
     /* Update statistics. */
     if (t == idle_thread)
         idle_ticks++;
@@ -222,6 +273,14 @@ thread_create (const char *name, int priority,
     struct thread* curr = thread_current();
     if(t->priority > curr->priority)
         thread_yield();
+    struct thread *cur = thread_current ();
+    if(thread_mlfqs){
+        // printf("---------------------------nice %d\n", t->nice);
+        t->nice = cur->nice;
+        t->recent_cpu = cur->recent_cpu;
+        // printf("##########the new thread recent cpu is %d\n",t->recent_cpu);
+        // calc_priority(&t);
+    }
     return tid;
 }
 
@@ -404,31 +463,41 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED)
 {
-    /* Not yet implemented. */
+    // printf("------------------------------ nice %d\n", nice);
+    bool yeild = false;
+    enum intr_level old_level = intr_disable ();
+    struct thread* curr = thread_current();
+    curr->nice = nice;
+    calc_priority(curr);
+    if(!list_empty(&ready_list) && curr->priority<list_entry(list_front(&ready_list), struct thread, elem)->priority)
+        yeild = true;
+    intr_set_level (old_level);
+    if(yeild){
+        thread_yield();
+    }
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void)
 {
-    /* Not yet implemented. */
-    return 0;
+    struct thread* curr = thread_current();
+    return curr->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void)
 {
-    /* Not yet implemented. */
-    return 0;
+    return fixedToInt(multiply(load_avg, intToFixed(100)));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void)
 {
-    /* Not yet implemented. */
-    return 0;
+    struct thread* curr = thread_current();
+    return fixedToInt(multiply(thread_current()->recent_cpu,intToFixed(100)));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.

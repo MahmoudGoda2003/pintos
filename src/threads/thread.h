@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "fixedNumber.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -89,6 +90,8 @@ struct thread
     struct list locks_list;             /* list to hold locks which the thread is acquiring */
     int base_priority;                  /* Original priority of the thread */
     struct lock *lock_waiting;
+    int nice;
+    fixedPoint recent_cpu;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
