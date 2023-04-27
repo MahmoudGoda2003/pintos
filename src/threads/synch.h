@@ -44,9 +44,35 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
-// Implemented
+// Added Functions
 void lock_update_greatest_priority_in_waiters(struct semaphore* sema);
+
 bool compare_locks_priority(struct list_elem *first, struct list_elem *second, void *aux);
+bool compare_max_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux);
+bool compare_semaphore_priority(struct list_elem *first, struct list_elem *second, void *aux);
+
+updateNestedPriority(struct thread* t);
+
+/*
+ * Modified Functions
+ *  1 -> sema_down
+ *      - Related to Priority Scheduler
+ *      - Notifies the holder thread when a semaphore's priority is changed
+ *  2 -> sena_up
+ *      - Related to Priority Scheduler
+ *      - Pops out the thread with the greatest priority among the waiters
+ *      - makes it acquire the semaphore.
+ *  3 -> lock_acquire
+ *      - Related to Priority Scheduler
+ *      - Changes the lock_waiting of the thread
+ *      - Changes the lock greatest priority
+ *      - Insert the lock in the holder locks list
+ *  4 -> lock_release
+ *      - Related to Priority Scheduler
+ *      - Notifies the thread that used to hold the lock of change
+ *      - in priority, in case of priority donation that should no longer exist
+ *      - Also resets the lock's greatest priority.
+ */
 
 
 

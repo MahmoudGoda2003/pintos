@@ -84,14 +84,16 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
-    int64_t wakeTime;                   /* tick need until wakeup*/
-    /* Shared between thread.c and synch.c. */
-    struct list_elem elem;              /* List element. */
-    struct list locks_list;             /* list to hold locks which the thread is acquiring */
-    int base_priority;                  /* Original priority of the thread */
-    struct lock *lock_waiting;
-    int nice;
-    fixedPoint recent_cpu;
+
+    // Added by the students
+    int64_t wakeTime;                   // tick need until wakeup*/
+    // Shared between thread.c and synch.c.
+    struct list_elem elem;              // List element. */
+    struct list locks_list;             // list to hold locks which the thread is acquiring */
+    int base_priority;                  // Original priority of the thread */
+    struct lock *lock_waiting;          // Pointing to the lock that the thread waiting for
+    int nice;                           // Nice value, related to the advanced scheduler
+    fixedPoint recent_cpu;              // related to the advanced scheduler
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -138,8 +140,42 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-/* Implemented Functions */
+/* Added Functions */
 bool compare_ticks(struct list_elem *first, struct list_elem *second, void *aux);
 bool compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux);
+
+void notifyChangeInLocksPriority(struct thread* t);
+
+void calc_load_avg();
+void calc_recent_cpu(struct thread *t, void* aux);
+void recalculate_recent_cpu_all();
+void calc_priority(struct thread *t);
+void recalculate_priority_all();
+void thread_set_nice (int nice UNUSED);
+int thread_get_nice (void);
+int thread_get_load_avg (void);
+int thread_get_recent_cpu (void);
+
+
+
+/* Modified Functions
+ *  1 -> thread_create
+ *      - Advanced Scheduler related
+ *      - inheritance of nice and RCPU
+ *  2 -> thread_unblock
+ *      - Priority Scheduler related
+ *      - For insertion in order in the ready list
+ *  3 -> thread_yield
+ *      - Priority Scheduler related
+ *      - For insertion in order in the ready list
+ *  4 -> thread_set_priority
+ *      - Priority Scheduler related
+ *  5 -> init_thread
+ *      - Priority Scheduler related
+ *      - To initialize some added attributes to the struct
+ *      - such as the base_priority, locks_list, lock_waiting
+ */
+
+
 
 #endif /* threads/thread.h */

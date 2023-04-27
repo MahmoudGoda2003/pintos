@@ -45,12 +45,7 @@ sema_init (struct semaphore *sema, unsigned value)
     list_init (&sema->waiters);
 }
 
-/* Down or "P" operation on a semaphore.  Waits for SEMA's value
-   to become positive and then atomically decrements it.
-   This function may sleep, so it must not be called within an
-   interrupt handler.  This function may be called with
-   interrupts disabled, but if it sleeps then the next scheduled
-   thread will probably turn interrupts back on. */
+// Handles the nested donation procedure
 updateNestedPriority(struct thread* t){
     if (t->lock_waiting == NULL)
         return;
@@ -70,6 +65,13 @@ updateNestedPriority(struct thread* t){
         updateNestedPriority(t->lock_waiting->holder);
     }
 }
+
+/* Down or "P" operation on a semaphore.  Waits for SEMA's value
+   to become positive and then atomically decrements it.
+   This function may sleep, so it must not be called within an
+   interrupt handler.  This function may be called with
+   interrupts disabled, but if it sleeps then the next scheduled
+   thread will probably turn interrupts back on. */
 void
 sema_down (struct semaphore *sema)
 {
@@ -117,15 +119,16 @@ sema_try_down (struct semaphore *sema)
     return success;
 }
 
-/* Up or "V" operation on a semaphore.  Increments SEMA's value
-   and wakes up one thread of those waiting for SEMA, if any.
-   This function may be called from an interrupt handler. */
 bool
 compare_max_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux) {
     struct thread *t1 = list_entry(elem1, struct thread, elem);
     struct thread *t2 = list_entry(elem2, struct thread, elem);
     return t1->priority < t2->priority;
 }
+
+/* Up or "V" operation on a semaphore.  Increments SEMA's value
+   and wakes up one thread of those waiting for SEMA, if any.
+   This function may be called from an interrupt handler. */
 void
 sema_up (struct semaphore *sema)
 {
@@ -317,6 +320,12 @@ cond_init (struct condition *cond)
     list_init (&cond->waiters);
 }
 
+bool compare_semaphore_priority(struct list_elem *first, struct list_elem *second, void *aux){
+    struct thread *thread1 = list_entry (first, struct semaphore_elem, elem);
+    struct thread *thread2 = list_entry (second, struct semaphore_elem, elem);
+    return thread1->priority > thread2->priority;
+}
+
 /* Atomically releases LOCK and waits for COND to be signaled by
    some other piece of code.  After COND is signaled, LOCK is
    reacquired before returning.  LOCK must be held before calling
@@ -334,12 +343,6 @@ cond_init (struct condition *cond)
    interrupt handler.  This function may be called with
    interrupts disabled, but interrupts will be turned back on if
    we need to sleep. */
-bool compare_semaphore_priority(struct list_elem *first, struct list_elem *second, void *aux){
-    struct thread *thread1 = list_entry (first, struct semaphore_elem, elem);
-    struct thread *thread2 = list_entry (second, struct semaphore_elem, elem);
-    return thread1->priority > thread2->priority;
-}
-
 void
 cond_wait (struct condition *cond, struct lock *lock)
 {
