@@ -188,9 +188,10 @@ timer_interrupt (struct intr_frame *args UNUSED)
     if(head_thread->wakeTime >ticks){
         break;
     }
-
+    enum intr_level old_level = intr_disable();
     list_remove(head);
     thread_unblock(head_thread);
+    intr_set_level(old_level);
   }
 
 }
