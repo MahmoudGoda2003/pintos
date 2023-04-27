@@ -69,11 +69,12 @@ static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
 static void init_thread (struct thread *, const char *name, int priority);
 static bool is_thread (struct thread *) UNUSED;
-                                        static void *alloc_frame (struct thread *, size_t size);
-                                        static void schedule (void);
-                                        void thread_schedule_tail (struct thread *prev);
-                                        static tid_t allocate_tid (void);
+static void *alloc_frame (struct thread *, size_t size);
+static void schedule (void);
+void thread_schedule_tail (struct thread *prev);
+static tid_t allocate_tid (void);
 
+// Compares 2 threads, returns the 1 with the greatest priority
 bool
 compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux){
     struct thread * t1 = list_entry (elem1, struct thread, elem);
@@ -81,6 +82,7 @@ compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *au
     return t1->priority > t2->priority;
 }
 
+// Based on the given equation, calculates the load average every second
 void calc_load_avg(){
     // int ready_count = ((int)list_size(&ready_list)-1>0?(int)list_size(&ready_list)-1:0) + (thread_current()!=idle_thread?1:0);
     int ready_count = 0;
@@ -99,6 +101,7 @@ void calc_recent_cpu(struct thread *t, void* aux){
     add(multiply(intToFixed(2),load_avg),intToFixed(1))), t->recent_cpu), intToFixed(t->nice));
 }
 
+// Called every 1 second
 void recalculate_recent_cpu_all(){
     enum intr_level old_level = intr_disable(); 
     thread_foreach(calc_recent_cpu,NULL);
@@ -110,6 +113,7 @@ void calc_priority(struct thread *t){
                             multiply(intToFixed(t->nice),intToFixed(2)));
 }
 
+// Called every 4 Ticks
 void recalculate_priority_all(){
     enum intr_level old_level = intr_disable(); 
     thread_foreach(calc_priority,NULL);
@@ -159,6 +163,10 @@ thread_start (void)
     sema_down (&idle_started);
 }
 
+/*
+ * Called by a lock to notify its holder thread of a change in priority,
+ * so the thread check the new priority and chooses the appropriate new priority.
+ */
 void
 notifyChangeInLocksPriority(struct thread* t)
 {
@@ -175,6 +183,7 @@ notifyChangeInLocksPriority(struct thread* t)
     }
     updateNestedPriority(t);
 }
+
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
@@ -327,16 +336,6 @@ thread_unblock (struct thread *t)
 //    printf("Leaving thread_unblock\n");
 
 }
-
-/*
-bool list_less_comp(const struct list_elem* a,
-                    const struct list_elem* b, void* aux UNUSED)
-{
-    const int a_member = (list_entry(a, struct thread, elem)->member;
-    const int a_member = (list_entry(b, struct thread, elem)->member;
-    return a_member < b_member;
-}
-*/
 
 /* Returns the name of the running thread. */
 const char *
