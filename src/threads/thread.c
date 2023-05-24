@@ -144,6 +144,7 @@ thread_init (void)
     init_thread (initial_thread, "main", PRI_DEFAULT);
     initial_thread->status = THREAD_RUNNING;
     initial_thread->tid = allocate_tid ();
+    sema_init(&initial_thread->waitsync, 0);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -277,6 +278,18 @@ thread_create (const char *name, int priority,
     sf->eip = switch_entry;
     sf->ebp = 0;
 
+    // Phase 2 Related
+    list_init(&(t->opened_files));
+    list_init(&(t->child_processes));
+    t->parent_thread = thread_current();
+    t->child_creation_success = 0; // TODO
+    t->child_status = 0; // TODO
+    t->waiting_on = t->tid;
+    t->fd_last = 2;
+    t->pid = t->tid;
+    sema_init(&(t->wait_child), 0);
+    sema_init(&(t->parent_child_sync), 0);
+
     /* Add to run queue. */
     thread_unblock (t);
     struct thread* curr = thread_current();
@@ -377,6 +390,7 @@ thread_exit (void)
 {
     ASSERT (!intr_context ());
 
+
 #ifdef USERPROG
     process_exit ();
 #endif
@@ -385,6 +399,7 @@ thread_exit (void)
        and schedule another process.  That process will destroy us
        when it calls thread_schedule_tail(). */
     intr_disable ();
+    sema_up(&thread_current()->parent_thread->waitsync);
     list_remove (&thread_current()->allelem);
     thread_current ()->status = THREAD_DYING;
     schedule ();
@@ -591,6 +606,8 @@ init_thread (struct thread *t, const char *name, int priority)
     old_level = intr_disable ();
     list_push_back (&all_list, &t->allelem);
     intr_set_level (old_level);
+
+
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -705,6 +722,23 @@ bool compare_ticks(struct list_elem *first, struct list_elem *second, void *aux)
     struct thread *thread2 = list_entry (second, struct thread, elem);
 
     return thread1->wakeTime < thread2->wakeTime;
+}
+
+struct thread* thread_get_by_id(tid_t id)
+{
+    ASSERT(id != TID_ERROR);
+    struct list_elem *e;
+    struct thread *t;
+    e = list_tail(&all_list);
+    while ((e = list_prev(e)) != list_head(&all_list))
+    {
+        t = list_entry(e, struct thread, allelem);
+        if (t->tid == id && t->status != THREAD_DYING)
+        {
+            return t;
+        }
+    }
+    return NULL;
 }
 
 /* Offset of `stack' member within `struct thread'.

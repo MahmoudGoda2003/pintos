@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "fixedNumber.h"
+#include "synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -94,6 +95,24 @@ struct thread
     struct lock *lock_waiting;          // Pointing to the lock that the thread waiting for
     int nice;                           // Nice value, related to the advanced scheduler
     fixedPoint recent_cpu;              // related to the advanced scheduler
+
+    /* Phase 2 Related */
+    struct list opened_files;
+    struct list child_processes;
+    struct thread* parent_thread;
+    bool child_creation_success;
+    int child_status;
+    tid_t waiting_on;
+    struct file* executable_file;
+    struct semaphore* wait_child;
+    struct semaphore* parent_child_sync;
+    struct semaphore waitsync;
+    int fd_last;
+    int pid;
+    struct list_elem child_elem;
+    bool loaded;
+    int exit_status;
+
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
