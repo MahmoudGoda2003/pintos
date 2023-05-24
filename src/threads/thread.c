@@ -144,6 +144,7 @@ thread_init (void)
     init_thread (initial_thread, "main", PRI_DEFAULT);
     initial_thread->status = THREAD_RUNNING;
     initial_thread->tid = allocate_tid ();
+    sema_init(&(initial_thread->parent_child_sema),0);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -280,8 +281,10 @@ thread_create (const char *name, int priority,
     /* Add to run queue. */
     thread_unblock (t);
     struct thread* curr = thread_current();
-    if(t->priority > curr->priority)
-        thread_yield();
+    if(t->priority > curr->priority){
+        if(!intr_context())
+            thread_yield();
+    }
     struct thread *cur = thread_current ();
     if(thread_mlfqs){
         // printf("---------------------------nice %d\n", t->nice);
@@ -385,6 +388,7 @@ thread_exit (void)
        and schedule another process.  That process will destroy us
        when it calls thread_schedule_tail(). */
     intr_disable ();
+    sema_up(&thread_current()->parent_thread->parent_child_sema);
     list_remove (&thread_current()->allelem);
     thread_current ()->status = THREAD_DYING;
     schedule ();
@@ -472,6 +476,7 @@ thread_set_nice (int nice UNUSED)
         yeild = true;
     intr_set_level (old_level);
     if(yeild){
+        if(!intr_context())
         thread_yield();
     }
 }
