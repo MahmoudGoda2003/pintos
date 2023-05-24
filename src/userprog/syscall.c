@@ -17,7 +17,6 @@
 #include "threads/thread.h"
 #include "threads/malloc.h"
 #include "threads/synch.h"
-#include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "userprog/process.h"
 #include <user/syscall.h>
@@ -25,6 +24,8 @@
 #include "devices/shutdown.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "pagedir.h"
+
 
 #define SYS_HALT 0
 #define SYS_EXIT 1
@@ -74,9 +75,9 @@ syscall_handler (struct intr_frame *f UNUSED)
     void* stackPointer = f->esp;
     int sysCallNumber = *((int*) stackPointer);
     stackPointer += sizeof(int);
-    // printf("######################################33\n");
-    // printf ("system call!\n");
-    // printf("%d\n",sysCallNumber);
+
+  
+
 
     switch(sysCallNumber){
         // HALT
@@ -98,11 +99,11 @@ syscall_handler (struct intr_frame *f UNUSED)
             // 	f->eax = exec((char *)args[0]);
             // 	break;
 
-            // case SYS_CREATE: // bool create (const char *file, unsigned initial_size);
-            // 	get_args(f, &args[0], 2);
-            // 	args[0] = get_kernel_ptr (args[0]);
-            // 	f->eax = create ((const char *)args[0], *((int*)args[1]));
-            // 	break;
+            case SYS_CREATE: // bool create (const char *file, unsigned initial_size);
+            	get_args(f, &args[0], 2);
+            	args[0] = get_kernel_ptr (args[0]);
+            	f->eax = create ((const char *)args[0], ((int*)args[1]));
+            	break;
 
             // case SYS_REMOVE: // bool remove (const char *file);
             // 	get_args(f, &args[0], 1);
@@ -282,8 +283,8 @@ void* get_kernel_ptr (void* user_ptr)
     void *kernel_ptr = pagedir_get_page(thread_current()->pagedir, user_ptr);
 
     // Ensure kernel is not NULL
-    // if(kernel_ptr == NULL)
-    // 	exit(-1);
+    if(kernel_ptr == NULL)
+    	exit(-1);
     return kernel_ptr;
 }
 
@@ -430,25 +431,25 @@ get_file_by_fd(int target_fd)
 // 	return file_size;
 // }
 
-// bool
-// create (const char *file_name, unsigned size)
-// {
-// 	bool is_file_creation_successful;
-// 	if (file_name == NULL)
-// 	{
-// 		is_file_creation_successful = false;
-// 	}
-// 	else
-// 	{
-// 		lock_acquire(&file_lock);
+bool
+create (const char *file_name, unsigned size)
+{
+	bool is_file_creation_successful;
+	if (file_name == NULL)
+	{
+		is_file_creation_successful = false;
+	}
+	else
+	{
+		lock_acquire(&file_system_lock);
 
-// 		is_file_creation_successful = filesys_create(file_name, size);
+		is_file_creation_successful = filesys_create(file_name, size);
 
-// 		lock_release(&file_lock);
-// 	}
+		lock_release(&file_system_lock);
+	}
 
-// 	return is_file_creation_successful;
-// }
+	return is_file_creation_successful;
+}
 
 // bool
 // remove (const char *file_name)
