@@ -85,10 +85,10 @@ syscall_handler (struct intr_frame *f UNUSED)
             break;
 
             // // TERMINATE PROCESS
-            // case SYS_EXIT:
-            // 	get_args(f, &args[0], 1);
-            // 	exit(*((int*)args[0]));
-            // 	break;
+        case SYS_EXIT:
+           get_args(f, &args[0], 1);
+           exit(((int*)args[0]));
+           break;
 
             //START ANOTHER PROCESS
             // case SYS_EXEC:
@@ -208,7 +208,6 @@ int write (int fd, const void *buffer, unsigned length){
 
 int syscall_write (int filedes, const void * buffer, unsigned byte_size)
 {
-    printf("fd is %d\n",filedes);
     if (byte_size <= 0)
     {
         return byte_size;
@@ -218,7 +217,6 @@ int syscall_write (int filedes, const void * buffer, unsigned byte_size)
         putbuf (buffer, byte_size); // from stdio.h
         return byte_size;
     }
-    printf("1\n");
     // start writing to file
     lock_acquire(&file_system_lock);
     struct file *file_ptr = get_file(filedes);
@@ -338,40 +336,12 @@ get_file_by_fd(int target_fd)
 //  * @status: 0 in case success
 //  *         otherwise in case errors
 //  */
-// void
-// exit (int status)
-// {
-// 	struct thread *t = thread_current();
-//  	(t->exit_status) = status;
-// 	//closing opened files
-// 	if(&(t->open_files_list) != NULL)
-// 	{
-// 		struct open_file *of = NULL;
-// 		for (struct list_elem *e = &((t->open_files_list).head.next); e != &((t->open_files_list).tail); e = (e->next))
-//   		{
-// 			of=list_entry(e,struct open_file,open_files_elem);
-// 			close(of->fd);
-//   		}
-// 	}
-// 	//check if there are any child processes running and wait on them
-// 	if(&(t->children_list) != NULL)
-// 	{
-// 		struct thread *cp;
-// 		for (struct list_elem *e = &((t->children_list).head.next); e != &((t->children_list).tail); e = (e->next))
-//   		{
-// 			cp = list_entry(e,struct thread, child_elem);
-// 			wait(cp->pid);
-//   		}
-// 	}
-// 	//check if the child process is blocking the parent
-// 	if((t->parent_thread->waiting_on) == t->pid)
-// 	{
-// 		sema_up(&t->sem_wait_on_child);
-// 	}
-
-// 	file_allow_write(t->executable_file);
-//  	thread_exit();
-// }
+ void
+ exit (int status)
+ {
+    printf("%s: exit(%d)\n", thread_current()->name, status);
+  	thread_exit();
+ }
 
 //  /* wait */
 // int

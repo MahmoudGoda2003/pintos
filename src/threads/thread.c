@@ -144,7 +144,7 @@ thread_init (void)
     init_thread (initial_thread, "main", PRI_DEFAULT);
     initial_thread->status = THREAD_RUNNING;
     initial_thread->tid = allocate_tid ();
-    sema_init(&(initial_thread->parent_child_sema),0);
+    sema_init(&(initial_thread->parent_child_sema), 0);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -277,6 +277,17 @@ thread_create (const char *name, int priority,
     sf = alloc_frame (t, sizeof *sf);
     sf->eip = switch_entry;
     sf->ebp = 0;
+
+    list_init(&(t->opened_files));
+    list_init(&(t->child_processes));
+    t->parent_thread = thread_current();
+    t->child_creation_success = 0; // TODO
+    t->child_status = 0; // TODO
+    t->waiting_on = t->tid;
+    t->fd_last = 2;
+    t->pid = t->tid;
+    sema_init(&(t->wait_child), 0);
+    sema_init(&(t->parent_child_sync), 0);
 
     /* Add to run queue. */
     thread_unblock (t);
