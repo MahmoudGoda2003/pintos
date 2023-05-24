@@ -14,14 +14,12 @@
   <component name="ChangeListManager">
     <list default="true" id="9229b1c0-ab87-4e09-9bca-66621a850654" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/threads/synch.c" beforeDir="false" afterPath="$PROJECT_DIR$/threads/synch.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/user/syscall.h" beforeDir="false" afterPath="$PROJECT_DIR$/lib/user/syscall.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/threads/thread.c" beforeDir="false" afterPath="$PROJECT_DIR$/threads/thread.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/threads/thread.h" beforeDir="false" afterPath="$PROJECT_DIR$/threads/thread.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/userprog/process.c" beforeDir="false" afterPath="$PROJECT_DIR$/userprog/process.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/userprog/process.h" beforeDir="false" afterPath="$PROJECT_DIR$/userprog/process.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/userprog/syscall.c" beforeDir="false" afterPath="$PROJECT_DIR$/userprog/syscall.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/Pintos.pm" beforeDir="false" afterPath="$PROJECT_DIR$/utils/Pintos.pm" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/pintos" beforeDir="false" afterPath="$PROJECT_DIR$/utils/pintos" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/setitimer-helper.o" beforeDir="false" afterPath="$PROJECT_DIR$/utils/setitimer-helper.o" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/squish-unix.o" beforeDir="false" afterPath="$PROJECT_DIR$/utils/squish-unix.o" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -104,6 +102,7 @@
       <workItem from="1681839536574" duration="20842000" />
       <workItem from="1681865925477" duration="13750000" />
       <workItem from="1684869432513" duration="14893000" />
+      <workItem from="1684954503529" duration="2685000" />
     </task>
     <servers />
   </component>

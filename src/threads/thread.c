@@ -69,14 +69,14 @@ static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
 static void init_thread (struct thread *, const char *name, int priority);
 static bool is_thread (struct thread *) UNUSED;
-static void *alloc_frame (struct thread *, size_t size);
-static void schedule (void);
-void thread_schedule_tail (struct thread *prev);
-static tid_t allocate_tid (void);
+                                        static void *alloc_frame (struct thread *, size_t size);
+                                        static void schedule (void);
+                                        void thread_schedule_tail (struct thread *prev);
+                                        static tid_t allocate_tid (void);
 
 // Compares 2 threads, returns the 1 with the greatest priority
-bool
-compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux){
+        bool
+        compare_less_priority(struct list_elem *elem1, struct list_elem *elem2, void *aux){
     struct thread * t1 = list_entry (elem1, struct thread, elem);
     struct thread * t2 = list_entry (elem2, struct thread, elem);
     return t1->priority > t2->priority;
@@ -89,33 +89,33 @@ void calc_load_avg(){
     if(!(thread_current() == idle_thread)){
         ready_count = list_size(&ready_list)+1;
     }
-    enum intr_level old_level = intr_disable(); 
+    enum intr_level old_level = intr_disable();
     // TODO change this to a simple code
-    load_avg = add(multiply(divide(intToFixed(59),intToFixed(60)), load_avg), 
-    multiply(divide(intToFixed(1),intToFixed(60)), intToFixed(ready_count)));
+    load_avg = add(multiply(divide(intToFixed(59),intToFixed(60)), load_avg),
+                   multiply(divide(intToFixed(1),intToFixed(60)), intToFixed(ready_count)));
     intr_set_level(old_level);
 }
 
 void calc_recent_cpu(struct thread *t, void* aux){
     t->recent_cpu = add(multiply(divide(multiply(intToFixed(2),load_avg),
-    add(multiply(intToFixed(2),load_avg),intToFixed(1))), t->recent_cpu), intToFixed(t->nice));
+                                        add(multiply(intToFixed(2),load_avg),intToFixed(1))), t->recent_cpu), intToFixed(t->nice));
 }
 
 // Called every 1 second
 void recalculate_recent_cpu_all(){
-    enum intr_level old_level = intr_disable(); 
+    enum intr_level old_level = intr_disable();
     thread_foreach(calc_recent_cpu,NULL);
     intr_set_level(old_level);
 }
 
 void calc_priority(struct thread *t){
     t->priority = subtract(subtract(intToFixed(63),divide(t->recent_cpu,intToFixed(4))),
-                            multiply(intToFixed(t->nice),intToFixed(2)));
+                           multiply(intToFixed(t->nice),intToFixed(2)));
 }
 
 // Called every 4 Ticks
 void recalculate_priority_all(){
-    enum intr_level old_level = intr_disable(); 
+    enum intr_level old_level = intr_disable();
     thread_foreach(calc_priority,NULL);
     intr_set_level(old_level);
 }
@@ -144,6 +144,7 @@ thread_init (void)
     init_thread (initial_thread, "main", PRI_DEFAULT);
     initial_thread->status = THREAD_RUNNING;
     initial_thread->tid = allocate_tid ();
+    sema_init(&(initial_thread->parent_child_sema),0);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -280,9 +281,10 @@ thread_create (const char *name, int priority,
     /* Add to run queue. */
     thread_unblock (t);
     struct thread* curr = thread_current();
-    if(!intr_context())
-    if(t->priority > curr->priority)
-        thread_yield();
+    if(t->priority > curr->priority){
+        if(!intr_context())
+            thread_yield();
+    }
     struct thread *cur = thread_current ();
     if(thread_mlfqs){
         // printf("---------------------------nice %d\n", t->nice);
@@ -386,6 +388,7 @@ thread_exit (void)
        and schedule another process.  That process will destroy us
        when it calls thread_schedule_tail(). */
     intr_disable ();
+    sema_up(&thread_current()->parent_thread->parent_child_sema);
     list_remove (&thread_current()->allelem);
     thread_current ()->status = THREAD_DYING;
     schedule ();
@@ -447,7 +450,7 @@ thread_set_priority (int new_priority)
             yield = true;
     }
     intr_set_level (old_level);
-    if(!intr_context())
+
     if (yield)
         thread_yield ();
 }
@@ -470,11 +473,11 @@ thread_set_nice (int nice UNUSED)
     curr->nice = nice;
     calc_priority(curr);
     if(!list_empty(&ready_list) && curr->priority<list_entry(list_front(&ready_list), struct thread, elem)->priority)
-        yeild = true;
+    yeild = true;
     intr_set_level (old_level);
-    if(!intr_context())
     if(yeild){
-        thread_yield();
+        if(!intr_context())
+            thread_yield();
     }
 }
 
