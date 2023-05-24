@@ -26,7 +26,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
-process_execute (const char *file_name) 
+process_execute (const char *file_name)
 {
   char *fn_copy;
   tid_t tid;
@@ -38,11 +38,54 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  char *program_name, *save_ptr;
+  strlcpy(program_name,file_name, strlen(file_name)+1);
+  strtok_r(program_name," ",&save_ptr);
+
+  program_name = strtok_r(program_name, " ", &save_ptr);
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (program_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
+}
+
+
+static void
+push_in_stack (const char* argv[], int argc, void **esp)
+{
+    void* argv_addr[argc];
+    for (int i = argc-1; i >= 0; i--) {
+        int len = strlen(argv[i]) + 1;
+        *esp -= len;
+        memcpy(*esp, argv[i], len);
+        argv_addr[i] = *esp;
+    }
+
+    // word align
+    *esp = (void*)((unsigned int)(*esp) & 0xfffffffc);
+
+    // last null
+    *esp -= 4;
+    *((uint32_t*) *esp) = 0;
+
+    // setting **esp with argvs
+    for (int i = argc - 1; i >= 0; i--) {
+        *esp -= 4;
+        *((void**) *esp) = argv_addr[i];
+    }
+
+    // setting **argv (addr of stack, esp)
+    *esp -= 4;
+    *((void**) *esp) = (*esp + 4);
+
+    // setting argc
+    *esp -= 4;
+    *((int*) *esp) = argc;
+
+    // setting ret addr
+    *esp -= 4;
+    *((int*) *esp) = 0;
 }
 
 /* A thread function that loads a user process and starts it
@@ -66,6 +109,20 @@ start_process (void *file_name_)
   if (!success) 
     thread_exit ();
 
+  const char **argv = (const char**) palloc_get_page(0);
+
+  if (argv == NULL)
+      thread_exit();
+
+  int argc = 0;
+  char* token, *save_ptr;
+  for (token = strtok_r(file_name, " ", &save_ptr); token != NULL; token = strtok_r(NULL, " ", &save_ptr)) {
+      argv[argc++] = token;
+  }
+
+  push_in_stack(argv, argc, &if_.esp);
+  hex_dump(if_.esp , if_.esp , PHYS_BASE - if_.esp , true);
+
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -88,6 +145,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+    while(1){}
   return -1;
 }
 
@@ -437,7 +495,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+        *esp = PHYS_BASE-12;
       else
         palloc_free_page (kpage);
     }

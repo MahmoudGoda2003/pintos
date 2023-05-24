@@ -149,6 +149,7 @@ sema_up (struct semaphore *sema)
     sema->value++;
     intr_set_level (old_level);
 
+    if(!intr_context())
     if (yield)
         thread_yield ();
 }

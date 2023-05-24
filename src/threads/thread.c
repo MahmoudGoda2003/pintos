@@ -280,6 +280,7 @@ thread_create (const char *name, int priority,
     /* Add to run queue. */
     thread_unblock (t);
     struct thread* curr = thread_current();
+    if(!intr_context())
     if(t->priority > curr->priority)
         thread_yield();
     struct thread *cur = thread_current ();
@@ -446,7 +447,7 @@ thread_set_priority (int new_priority)
             yield = true;
     }
     intr_set_level (old_level);
-
+    if(!intr_context())
     if (yield)
         thread_yield ();
 }
@@ -471,6 +472,7 @@ thread_set_nice (int nice UNUSED)
     if(!list_empty(&ready_list) && curr->priority<list_entry(list_front(&ready_list), struct thread, elem)->priority)
         yeild = true;
     intr_set_level (old_level);
+    if(!intr_context())
     if(yeild){
         thread_yield();
     }
