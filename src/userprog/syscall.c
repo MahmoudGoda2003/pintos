@@ -3,540 +3,436 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-#include "threads/vaddr.h"
-#include "devices/shutdown.h"
-#include "userprog/process.h"
-#include "userprog/pagedir.h"
-#include "filesys/filesys.h"
-#include "filesys/file.h"
-#include "../lib/kernel/stdio.h"
-#include "userprog/syscall.h"
-#include <stdio.h>
-#include <syscall-nr.h>
-#include "threads/interrupt.h"
-#include "threads/thread.h"
-#include "threads/malloc.h"
-#include "threads/synch.h"
-#include "userprog/pagedir.h"
-#include "userprog/process.h"
-#include <user/syscall.h>
-#include "devices/input.h"
-#include "devices/shutdown.h"
+#include "devices/shutdown.h" // halt
+#include "threads/init.h"  // halt
+#include "threads/vaddr.h" // exit
 #include "filesys/file.h"
 #include "filesys/filesys.h"
-#include "pagedir.h"
+#include "lib/kernel/list.h"
 
+struct lock required_lock;
+static void syscall_handler(struct intr_frame *);
 
-#define SYS_HALT 0
-#define SYS_EXIT 1
-#define SYS_EXEC 2
-#define SYS_WAIT 3
-#define SYS_CREATE 4
-#define SYS_REMOVE 5
-#define SYS_OPEN 6
-#define SYS_FILESIZE 7
-#define SYS_READ 8
-#define SYS_WRITE 9
-#define SYS_SEEK 10
-#define SYS_TELL 11
-#define SYS_CLOSE 12
+// status in f->esp and execute in f->eax
+// declaration for added wrapper methods __ system calls
+void wrapper_sys_exit(struct intr_frame *f);
+void wrapper_sys_exec(struct intr_frame *f);
+void wrapper_sys_wait(struct intr_frame *f);
+void wrapper_sys_create(struct intr_frame *f);
+void wrapper_sys_remove(struct intr_frame *f);
+void wrapper_sys_open(struct intr_frame *f);
+void wrapper_sys_filesize(struct intr_frame *f);
+void wrapper_sys_read(struct intr_frame *f);
+void wrapper_sys_write(struct intr_frame *f);
+void wrapper_sys_close(struct intr_frame *f);
 
-#define STD_INPUT 0
-#define STD_OUTPUT 1
-#define ERROR -1
+// check validation
+bool valid_in_virtual_memory(void *val);
+bool valid_esp(struct intr_frame *f);
 
-struct file * get_file_by_fd(int target_fd);
-void* get_kernel_ptr (void* user_ptr);
-int write (int fd, const void *buffer, unsigned length);
-void validate_buffer (const void *buffer, unsigned byte_size);
-int syscall_write (int filedes, const void * buffer, unsigned byte_size);
-void is_ptr_valid (void* vaddr);
-struct lock file_system_lock;
-static void syscall_handler (struct intr_frame *);
-
-struct file* get_file(int filedes);
-struct file* get_file (int filedes);
-
-struct process_file {
-    struct file *file;
-    int fd;
-    struct list_elem elem;
-};
-
-void
-syscall_init (void)
+void syscall_init(void)
 {
-    intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
-    lock_init(&file_system_lock);
+    intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
+    lock_init(&required_lock);
 }
-
+////////////////////////////
 static void
-syscall_handler (struct intr_frame *f UNUSED)
+syscall_handler(struct intr_frame *f)
 {
-    void *args[3];
-    void* stackPointer = f->esp;
-    is_ptr_valid(stackPointer);
-    int sysCallNumber = *((int*) stackPointer);
-    stackPointer += sizeof(int);
-
-  
-
-
-    switch(sysCallNumber){
-        // HALT
+    if (!valid_esp(f))
+    {
+        sys_exit(-1);
+    }
+    // switch to system calls
+    switch (*(int *)f->esp)
+    {
         case SYS_HALT:
-            halt();
-            break;
-
-            // // TERMINATE PROCESS
-        case SYS_EXIT:
-           get_args(f, &args[0], 1);
-           exit(((int*)args[0]));
-           break;
-
-            //START ANOTHER PROCESS
-            // case SYS_EXEC:
-            // 	get_args(f, &args[0], 1);
-            // 	/*Transform arg from user vaddr. to kernel vaddr*/
-            // 	args[0] = get_kernel_ptr (args[0]);
-            // 	f->eax = exec((char *)args[0]);
-            // 	break;
-
-            case SYS_CREATE: // bool create (const char *file, unsigned initial_size);
-            	get_args(f, &args[0], 2);
-            	args[0] = get_kernel_ptr (args[0]);
-            	f->eax = create ((const char *)args[0], ((int*)args[1]));
-            	break;
-
-            // case SYS_REMOVE: // bool remove (const char *file);
-            // 	get_args(f, &args[0], 1);
-            // 	args[0] = get_kernel_ptr (args[0]);
-            // 	f->eax = remove ((const char *)args[0]);
-            // 	break;
-
-            // case SYS_OPEN: // int open (const char *file);
-            // 	get_args(f, &args[0], 1);
-            // 	args[0] = get_kernel_ptr (args[0]);
-            // 	f->eax = open ((const char *)args[0]);
-            // 	break;
-
-            // case SYS_FILESIZE: // int filesize (int fd);
-            // 	get_args(f, &args[0], 1);
-            // 	f->eax = filesize (*((int*)args[0]));
-            // 	break;
-
-            // case SYS_READ: // int read (int fd, void *buffer, unsigned length);
-            // 	get_args(f, &args[0], 3);
-            //  validate_buffer(args[1], (unsigned*)args[2]);
-            // 	args[1] = get_kernel_ptr (args[1]);
-            // 	f->eax = read (*((int*)args[0]), args[1], *((unsigned*)args[2]));
-            // 	break;
-
-        case SYS_WRITE: // int write (int fd, const void *buffer, unsigned length);
-            // printf("form sys 9\n");
-            get_args(f, &args[0], 3);
-
-            // check if the buffer is valid don't access wrong virtual address
-            validate_buffer(args[1], (unsigned*)args[2]);
-
-            args[1] = get_kernel_ptr (args[1]);
-//            // printf("the fd is %d\n",*((int*)args[0]));
-//            printf("/////////////////////////////////");
-//            printf("first %d, third %d \n",((int*)args[0]),((unsigned*)args[2]));
-//            printf("/////////////////////////////////");
-            f->eax = syscall_write(((int*)args[0]), args[1], ((unsigned*)args[2]));
-            // printf("after execution\n");
-            break;
-
-            // case SYS_SEEK: // void seek (int fd, unsigned position);
-            // 	get_args(f, &args[0], 2);
-            // 	seek (*((int*)args[0]), *((unsigned*)args[1]));
-            // 	break;
-
-            // case SYS_TELL: // unsigned tell (int fd);
-            // 	get_args(f, &args[0], 1);
-            // 	f->eax = tell (*((int*)args[0]));
-            // 	break;
-
-            // case SYS_CLOSE: // void close (int fd);
-            // 	get_args(f, &args[0], 1);
-            // 	close (*((int*)args[0]));
-            // 	break;
-
-            // default:
-            // 	exit(-1);
-            // 	break;
-
-    }
-}
-
-////////////////////implementation of Sys calls/////////////////////////////
-
-void halt(void){
-    shutdown_power_off();
-}
-
-int write (int fd, const void *buffer, unsigned length){
-    if(fd == 1){
-        putbuf(buffer, length);
-        return length;
-    }
-    struct file* file_ptr = get_file_by_fd(fd);
-    if ((file_ptr != NULL) && (buffer != NULL))
-    {
-        return file_write(file_ptr, buffer, (off_t)length);
-    }
-    return -1;
-}
-
-// int sys_write(int fd, const void *buffer, unsigned size)
-// {
-//   if (fd == 1)
-//   { // fd is 1, writes to the console
-//     lock_acquire(&required_lock);
-//     putbuf(buffer, size);
-//     lock_release(&required_lock);
-//     return size;
-//   }
-
-//   struct open_file *file = sys_file(fd);
-//   if (file == NULL)
-//   { // fail
-//     return -1;
-//   }
-//   else
-//   {
-//     int ans = 0;
-//     lock_acquire(&required_lock);
-//     ans = file_write(file->file, buffer, size);
-//     lock_release(&required_lock);
-//     return ans;
-//   }
-// }
-
-int syscall_write (int filedes, const void * buffer, unsigned byte_size)
-{
-    if (byte_size <= 0)
-    {
-        return byte_size;
-    }
-    if (filedes == STD_OUTPUT)
-    {
-        putbuf (buffer, byte_size); // from stdio.h
-        return byte_size;
-    }
-    // start writing to file
-    lock_acquire(&file_system_lock);
-    struct file *file_ptr = get_file(filedes);
-    if (!file_ptr)
-    {
-        lock_release(&file_system_lock);
-        return ERROR;
-    }
-    int bytes_written = file_write(file_ptr, buffer, byte_size); // file.h
-    lock_release (&file_system_lock);
-    return bytes_written;
-}
-////////////////helper functions/////////////////////////////
-
-struct file*
-get_file (int filedes)
-{
-    struct thread *t = thread_current();
-    struct list_elem* next;
-    struct list_elem* e = list_begin(&t->opened_files);
-
-    for (; e != list_end(&t->opened_files); e = next)
-    {
-        next = list_next(e);
-        struct process_file *process_file_ptr = list_entry(e, struct process_file, elem);
-        if (filedes == process_file_ptr->fd)
         {
-            return process_file_ptr->file;
+            sys_halt();
+            break;
+        }
+        case SYS_EXIT:
+        {
+            wrapper_sys_exit(f);
+            break;
+        }
+        case SYS_EXEC:
+        {
+            wrapper_sys_exec(f);
+            break;
+        }
+        case SYS_WAIT:
+        {
+            wrapper_sys_wait(f);
+            break;
+        }
+        case SYS_CREATE:
+        {
+            wrapper_sys_create(f);
+            break;
+        }
+        case SYS_REMOVE:
+        {
+            wrapper_sys_remove(f);
+            break;
+        }
+        case SYS_OPEN:
+        {
+            wrapper_sys_open(f);
+            break;
+        }
+        case SYS_FILESIZE:
+        {
+            wrapper_sys_filesize(f);
+            break;
+        }
+        case SYS_READ:
+        {
+            wrapper_sys_read(f);
+            break;
+        }
+        case SYS_WRITE:
+        {
+            wrapper_sys_write(f);
+            break;
+        }
+        case SYS_SEEK:
+        {
+            sys_seek(f);
+            break;
+        }
+        case SYS_TELL:
+        {
+            sys_tell(f);
+            break;
+        }
+        case SYS_CLOSE:
+        {
+            wrapper_sys_close(f);
+            break;
+        }
+        default:
+        {
+            //
         }
     }
-    return NULL; // nothing found
 }
 
-void
-is_ptr_valid (void* vaddr)
+// added methods _ for system calls
+void sys_halt()
 {
-    if(!is_user_vaddr(vaddr) || vaddr == NULL || pagedir_get_page(thread_current()->pagedir, vaddr) == NULL)
+    printf("(halt) begin\n");
+    shutdown_power_off();
+}
+/////////////////
+void sys_exit(int status)
+{
+    char * name = thread_current()->name;
+    char * save_ptr;
+    char * executable = strtok_r (name, " ", &save_ptr);
+    thread_current()->exit_status = status;
+    printf("%s: exit(%d)\n",executable,status);
+    thread_exit();
+}
+
+tid_t  sys_wait(tid_t tid)
+{
+    return process_wait(tid);
+}
+
+int sys_create(const char *file, unsigned initial_size)
+{
+    int ans = 0;
+    lock_acquire(&required_lock);
+    ans = filesys_create(file, initial_size);
+    lock_release(&required_lock);
+    return ans;
+}
+
+int sys_remove(const char *file)
+{
+    int ans = -1;
+    lock_acquire(&required_lock);
+    ans = filesys_remove(file);
+    lock_release(&required_lock);
+    return ans;
+}
+
+int sys_open(const char *file)
+{
+    static unsigned long curent_fd = 2;
+    lock_acquire(&required_lock);
+    struct file *opened_file = filesys_open(file);
+    lock_release(&required_lock);
+
+    if (opened_file == NULL)
+    { // fail
+        return -1;
+    }
+    else
     {
-        exit(ERROR);
+        // open_file contains the file and file descriptor
+        struct open_file *user_file = (struct open_file *)malloc(sizeof(struct open_file));
+        int file_fd = curent_fd;
+        user_file->fd = curent_fd;
+        user_file->file = opened_file;
+
+        lock_acquire(&required_lock);
+        curent_fd++;
+        lock_release(&required_lock);
+        // list of opended files
+        struct list_elem *elem = &user_file->elem;
+        list_push_back(&thread_current()->list_of_open_file, elem);
+        return file_fd;
     }
 }
 
-void
-validate_buffer(const void* buf, unsigned byte_size)
+struct open_file *sys_file(int fd)
 {
-    unsigned i = 0;
-    char* local_buffer = (char *)buf;
-    for (; i < byte_size; i++)
+    struct open_file *ans=NULL;
+    struct list *list_of_files = &(thread_current()->list_of_open_file);
+    for (struct list_elem *cur = list_begin(list_of_files); cur != list_end(list_of_files); cur = list_next(cur))
     {
-        is_ptr_valid((const void*)local_buffer);
-        local_buffer++;
-    }
-}
-
-
-void get_args (struct intr_frame *f, int *args, int num_of_args)
-{
-    int i;
-    int *ptr;
-    for (i = 0; i < num_of_args; i++)
-    {
-        ptr = (int *) f->esp + i + 1;
-        is_ptr_valid((const void *) ptr);
-        args[i] = *ptr;
-    }
-}
-/*convert user ptr to kernel ptr*/
-void* get_kernel_ptr (void* user_ptr)
-{
-    is_ptr_valid(user_ptr);
-
-    /*userptr -> kernelptr*/
-    void *kernel_ptr = pagedir_get_page(thread_current()->pagedir, user_ptr);
-
-    // Ensure kernel is not NULL
-    is_ptr_valid(user_ptr);
-    return kernel_ptr;
-}
-
-struct file *
-get_file_by_fd(int target_fd)
-{
-    struct thread *t = thread_current();
-    struct open_file *of = NULL;
-    /*loop over all files opened by this process and search for the fd*/
-    for(struct list_elem *e = list_begin(&(t->opened_files));
-        e != &((t->opened_files).tail);
-        e = e->next)
-    {
-        of = list_entry(e, struct open_file, open_files_elem);
-        if((of->fd) == target_fd)
+        struct open_file *cur_file = list_entry(cur, struct open_file, elem);
+        if ((cur_file->fd) == fd)
         {
-            return (of->file_ptr);
+            return cur_file;
         }
     }
     return NULL;
 }
 
-//////////////////////////////////////////
-
-
-
-// int
-// exec (const char *cmd_line)
-// {
-// 	struct thread* parent = thread_current();
-//  	(parent->child_creation_success) = false;
-//  	if(cmd_line == NULL)
-// 	{
-// 		return -2; // cannot run
-// 	}
-//  	/*create new process*/
-//  	int child_tid = process_execute(cmd_line);
-// 	if (child_tid != TID_ERROR)
-// 	{
-// 		(parent->child_creation_success) = true;
-// 	}
-//  	return child_tid;
-// }
-
-/* is_ptr_valid: checks the validity of the pointer */
-
-
-// /**
-//  * exit: Terminates the current userprog
-//  * @status: 0 in case success
-//  *         otherwise in case errors
-//  */
- void
- exit (int status)
- {
-    printf("%s: exit(%d)\n", thread_current()->name, status);
-  	thread_exit();
- }
-
-//  /* wait */
-// int
-// wait (int pid)
-// {
-// 	struct thread *parent = thread_current(); /* current process */
-// 	struct thread *child = NULL;              /* Child process */
-
-// 	/* Ensure there is child process needed to wait for */
-// 	if (list_empty(&parent->children_list))
-// 	{
-// 		return -2;
-// 	}
-
-
-// 	/* Search parent list of children for child_tid */
-// 	child = get_child(parent, pid);
-
-// 	/* If child not found, return -1 */
-// 	if (child == NULL)
-// 	{
-// 		return -1;
-// 	}
-
-// 	/* Remove child for which we are waiting from the list*/
-// 	list_remove(&child->child_elem);
-
-// 	/* Make parent wait till child finishes executing */
-// 	(parent->waiting_on) = (child->pid);
-// 	sema_down(&(child->sem_wait_on_child));
-
-// 	/* Return exit status of child when terminated*/
-// 	return (child->exit_status);
-// }
-
-// void
-// close (int fd)
-// {
-// 	struct open_file *of = NULL;
-// 	(of->file_ptr) = get_file_by_fd(fd);
-// 	if ((of->file_ptr) != NULL)
-// 	{
-// 		file_close(of->file_ptr);
-// 		lock_release(&file_lock);
-// 	}
-// }
-
-// int
-// open (const char *file_name)
-// {
-// 	struct thread *t = thread_current();
-// 	struct open_file *of = NULL;
-
-// 	lock_acquire(&file_lock);
-
-// 	of->file_ptr = filesys_open (file_name);
-
-// 	if ((of->file_ptr) != NULL)
-//     {
-// 		(t->fd_last)++;
-// 		(of->fd) = (t->fd_last);
-// 		list_push_back (&(t->open_files_list), &(of->open_files_elem));
-//     }
-// 	else
-// 	{
-// 		lock_release(&file_lock);
-// 	}
-// 	return (of->fd);
-// }
-
-// int
-// filesize (int fd)
-// {
-// 	struct open_file *of = NULL;
-// 	int file_size = -1;
-
-// 	lock_acquire(&file_lock);
-
-// 	(of->file_ptr) = get_file_by_fd(fd);
-
-// 	if ((of->file_ptr) != NULL)
-// 	{
-// 		file_size = file_length (of->file_ptr);
-// 		lock_release(&file_lock);
-// 	}
-// 	return file_size;
-// }
-
-bool
-create (const char *file_name, unsigned size)
+int sys_read(int fd, void *buffer, unsigned size)
 {
-	bool is_file_creation_successful;
-	if (file_name == NULL)
-	{
-		is_file_creation_successful = false;
-	}
-	else
-	{
-		lock_acquire(&file_system_lock);
+    int res = size;
+    if (fd == 0)
+    { // stdin .. 0 at end of file
+        while (size--)
+        {
+            lock_acquire(&required_lock);
+            char ch = input_getc();
+            lock_release(&required_lock);
+            buffer += ch;
+        }
+        return res;
+    }
 
-		is_file_creation_successful = filesys_create(file_name, size);
-
-		lock_release(&file_system_lock);
-	}
-
-	return is_file_creation_successful;
+    struct open_file *user_file = sys_file(fd);
+    if (user_file == NULL)
+    { // fail
+        return -1;
+    }
+    else
+    {
+        struct file *file = user_file->file;
+        lock_acquire(&required_lock);
+        size = file_read(file, buffer, size);
+        lock_release(&required_lock);
+        return size;
+    }
 }
 
-// bool
-// remove (const char *file_name)
-// {
-// 	bool is_file_removal_successful;
+int sys_write(int fd, const void *buffer, unsigned size)
+{
+    if (fd == 1)
+    { // fd is 1, writes to the console
+        lock_acquire(&required_lock);
+        putbuf(buffer, size);
+        lock_release(&required_lock);
+        return size;
+    }
 
-// 	if (file_name == NULL)
-// 	{
-// 		is_file_removal_successful = false;
-// 	}
-// 	else
-// 	{
-// 		lock_acquire(&file_lock);
+    struct open_file *file = sys_file(fd);
+    if (file == NULL)
+    { // fail
+        return -1;
+    }
+    else
+    {
+        int ans = 0;
+        lock_acquire(&required_lock);
+        ans = file_write(file->file, buffer, size);
+        lock_release(&required_lock);
+        return ans;
+    }
+}
 
-// 		is_file_removal_successful = filesys_remove(file_name);
+void sys_seek(struct intr_frame *f)
+{
+    int fd = (int)(*((int *)f->esp + 1));
+    unsigned pos = (unsigned)(*((int *)f->esp + 2));
+    struct open_file *opened_file = sys_file(fd);
+    if (opened_file == NULL)
+    { // fail
+        f->eax = -1;
+    }
+    else
+    {
+        lock_acquire(&required_lock);
+        file_seek(opened_file->file, pos);
+        f->eax = pos;
+        lock_release(&required_lock);
+    }
+}
 
-// 		lock_release(&file_lock);
-// 	}
+void sys_tell(struct intr_frame *f)
+{
+    int fd = (int)(*((int *)f->esp + 1));
+    struct open_file *file = sys_file(fd);
+    if (file == NULL)
+    {
+        f->eax = -1;
+    }
+    else
+    {
+        lock_acquire(&required_lock);
+        f->eax = file_tell(file->file);
+        lock_release(&required_lock);
+    }
+}
 
-// 	return is_file_removal_successful;
-// }
+int sys_close(int fd)
+{
+    struct open_file *opened_file = sys_file(fd);
+    if (opened_file != NULL)
+    {
+        lock_acquire(&required_lock);
+        file_close(opened_file->file);
+        lock_release(&required_lock);
+        list_remove(&opened_file->elem);
+        return 1;
+    }
+    return -1;
+}
 
-// void
-// seek (int fd, unsigned position)
-// {
-// 	struct open_file *of = NULL;
+// added methods _ for wrapper system calls
+/* it's job just passing the status to exit */
+void wrapper_sys_exit(struct intr_frame *f)
+{
+    int status = *((int *)f->esp + 1);
+    if (!is_user_vaddr(status))
+    {
+        // not user virtual address, then exit with failure
+        f->eax = -1;
+        sys_exit(-1);
+    }
+    f->eax = status;
+    sys_exit(status);
+}
 
-// 	lock_acquire(&file_lock);
+/* it's job executing the process */
+void wrapper_sys_exec(struct intr_frame *f)
+{
+    char *file_name = (char *)(*((int *)f->esp + 1));
+    f->eax = process_execute(file_name);
+}
 
-// 	(of->file_ptr) = get_file_by_fd(fd);
+/* it's job is checking validation in virtual memory if valid pass it to sys_wait() */
+void wrapper_sys_wait(struct intr_frame *f)
+{
+    if (!valid_in_virtual_memory((int *)f->esp + 1))
+        sys_exit(-1);
+    tid_t tid = *((int *)f->esp + 1);
+    f->eax = sys_wait(tid);
+}
 
-// 	if ((of->file_ptr) != NULL)
-// 	{
-// 		file_seek(of->file_ptr, position);
-// 	}
+/* it's job is checking validation in virtual memory if valid pass it to sys_create() */
+void wrapper_sys_create(struct intr_frame *f)
+{
+    char *file = (char *)*((int *)f->esp + 1);
+    if (!valid_in_virtual_memory(file))
+    {
+        sys_exit(-1);
+    }
+    unsigned initial_size = (unsigned)*((int *)f->esp + 2);
+    f->eax = sys_create(file, initial_size);
+}
 
-// 	lock_release(&file_lock);
-// }
+/* it's job is checking validation in virtual memory if valid pass it to sys_remove() */
+void wrapper_sys_remove(struct intr_frame *f)
+{
+    char *file = (char *)(*((int *)f->esp + 1));
+    if (!valid_in_virtual_memory(file))
+    {
+        sys_exit(-1);
+    }
+    f->eax = sys_remove(file);
+}
 
-// unsigned
-// tell (int fd)
-// {
-// 	struct open_file *of = NULL;
-// 	unsigned position_in_file = -1;
+/* it's job is checking validation in virtual memory if valid pass it to sys_open() */
+void wrapper_sys_open(struct intr_frame *f)
+{
+    char *file = (char *)(*((int *)f->esp + 1));
+    if (!valid_in_virtual_memory(file))
+    {
+        sys_exit(-1);
+    }
+    f->eax = sys_open(file);
+}
 
-// 	lock_acquire(&file_lock);
+/* it's job is checking validation in virtual memory if valid pass it to sys_file() */
+void wrapper_sys_filesize(struct intr_frame *f)
+{
+    int fd = (int)(*((int *)f->esp + 1));
+    struct open_file *file = sys_file(fd);
+    if (file == NULL)
+    { // fail
+        f->eax = -1;
+    }
+    else
+    {
+        lock_acquire(&required_lock);
+        f->eax = file_length(file->file); // setting file size
+        lock_release(&required_lock);
+    }
+}
+////////////////////////////////
 
-// 	(of->file_ptr) = get_file_by_fd(fd);
+/* it's job is checking validation in virtual memory if valid pass it to sys_read() */
+void wrapper_sys_read(struct intr_frame *f)
+{
+    int fd = (int)(*((int *)f->esp + 1));
+    char *buffer = (char *)(*((int *)f->esp + 2));
+    if (fd == 1 || !valid_in_virtual_memory(buffer))
+    { // fail if fd is 1 means (stdout) or in valid in virtual memory
+        sys_exit(-1);
+    }
+    unsigned size = *((unsigned *)f->esp + 3);
+    f->eax = sys_read(fd, buffer, size);
+}
 
-// 	if ((of->file_ptr) != NULL)
-// 	{
-// 		position_in_file = file_tell(of->file_ptr);
-// 	}
+/* it's job is checking validation in virtual memory if valid pass it to sys_write() */
+void wrapper_sys_write(struct intr_frame *f)
+{
+    int fd = *((int *)f->esp + 1);
+    char *buffer = (char *)(*((int *)f->esp + 2));
+    if (fd == 0 || !valid_in_virtual_memory(buffer))
+    { // fail, if fd is 0 (stdin), or its virtual memory
+        sys_exit(-1);
+    }
+    unsigned size = (unsigned)(*((int *)f->esp + 3));
+    f->eax = sys_write(fd, buffer, size);
+}
 
-// 	lock_release(&file_lock);
+/* it's job is checking validation in virtual memory if valid pass it to sys_close() */
+void wrapper_sys_close(struct intr_frame *f)
+{
+    int fd = (int)(*((int *)f->esp + 1));
+    if (fd < 2)
+    { // fail, the fd is stdin or stdout
+        sys_exit(-1);
+    }
+    f->eax = sys_close(fd);
+}
 
-// 	return position_in_file;
-// }
+// Check validation of virtual memory :)
+bool valid_in_virtual_memory(void *val)
+{
+    return val != NULL && is_user_vaddr(val) && pagedir_get_page(thread_current()->pagedir, val) != NULL;
+}
 
-// int
-// read (int fd, void *buffer, unsigned length)
-// {
-// 	struct file* file_ptr = get_file_by_fd(fd);
-
-// 	if ((file_ptr != NULL) && (buffer != NULL))
-// 	{
-// 		return file_read(file_ptr, buffer, (off_t)length);
-// 	}
-
-// 	return -1;
-// }
-
-
-// /***/
+// check validation of stack pointer
+bool valid_esp(struct intr_frame *f)
+{
+    return valid_in_virtual_memory((int *)f->esp) || ((*(int *)f->esp) < 0) || (*(int *)f->esp) > 12;
+}

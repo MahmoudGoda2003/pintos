@@ -1,19 +1,18 @@
-#include <stdint.h>
+/* define new data type called real -float-like data type- */
+typedef struct
+{
+    int value;
+}real;
 
-#define FBits 14
-#define F (1<<FBits)
-typedef int32_t fixedPoint;
+/* convert from int to real and viceversa. */
+int real_to_int(real i);
+real int_to_real(int i);
 
-fixedPoint intToFixed(int n);
-int fixedToInt(fixedPoint x);
-int fixedToNearestInt(fixedPoint x);
-fixedPoint add(fixedPoint x, fixedPoint y);
-fixedPoint subtract(fixedPoint x, fixedPoint y);
-fixedPoint addInt(fixedPoint x, int n);
-fixedPoint subtractInt(fixedPoint x, int n);
-fixedPoint multiply(fixedPoint x, fixedPoint y);
-fixedPoint divide(fixedPoint x, fixedPoint y);
-fixedPoint multiplyInt(fixedPoint x, int n);
-fixedPoint divideInt(fixedPoint x, int n);
+/* math operations */
+real add(real x, real y);
+real sub(real x, real y);
+real mul(real x, real y);
+real div(real x, real y);
 
-
+/* power function return base^exponent */
+int power(int base, int exponent);
