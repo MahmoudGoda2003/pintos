@@ -48,7 +48,9 @@
 struct file * get_file_by_fd(int target_fd);
 void* get_kernel_ptr (void* user_ptr);
 int write (int fd, const void *buffer, unsigned length);
+void validate_buffer (const void *buffer, unsigned byte_size);
 int syscall_write (int filedes, const void * buffer, unsigned byte_size);
+void is_ptr_valid (void* vaddr);
 struct lock file_system_lock;
 static void syscall_handler (struct intr_frame *);
 
@@ -73,6 +75,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 {
     void *args[3];
     void* stackPointer = f->esp;
+    is_ptr_valid(stackPointer);
     int sysCallNumber = *((int*) stackPointer);
     stackPointer += sizeof(int);
 
@@ -124,6 +127,7 @@ syscall_handler (struct intr_frame *f UNUSED)
 
             // case SYS_READ: // int read (int fd, void *buffer, unsigned length);
             // 	get_args(f, &args[0], 3);
+            //  validate_buffer(args[1], (unsigned*)args[2]);
             // 	args[1] = get_kernel_ptr (args[1]);
             // 	f->eax = read (*((int*)args[0]), args[1], *((unsigned*)args[2]));
             // 	break;
@@ -131,6 +135,9 @@ syscall_handler (struct intr_frame *f UNUSED)
         case SYS_WRITE: // int write (int fd, const void *buffer, unsigned length);
             // printf("form sys 9\n");
             get_args(f, &args[0], 3);
+
+            // check if the buffer is valid don't access wrong virtual address
+            validate_buffer(args[1], (unsigned*)args[2]);
 
             args[1] = get_kernel_ptr (args[1]);
 //            // printf("the fd is %d\n",*((int*)args[0]));
@@ -254,11 +261,21 @@ get_file (int filedes)
 void
 is_ptr_valid (void* vaddr)
 {
-    if(vaddr < USER_VIR_ADDR_BOTTOM || !is_user_vaddr(vaddr))
+    if(!is_user_vaddr(vaddr) || vaddr == NULL || pagedir_get_page(thread_current()->pagedir, vaddr) == NULL)
     {
-        thread_exit();
-        // virtual memory address is not reserved for the user
-        // TO BE ADDED LATER : system call exit
+        exit(ERROR);
+    }
+}
+
+void
+validate_buffer(const void* buf, unsigned byte_size)
+{
+    unsigned i = 0;
+    char* local_buffer = (char *)buf;
+    for (; i < byte_size; i++)
+    {
+        is_ptr_valid((const void*)local_buffer);
+        local_buffer++;
     }
 }
 
@@ -283,8 +300,7 @@ void* get_kernel_ptr (void* user_ptr)
     void *kernel_ptr = pagedir_get_page(thread_current()->pagedir, user_ptr);
 
     // Ensure kernel is not NULL
-    if(kernel_ptr == NULL)
-    	exit(-1);
+    is_ptr_valid(user_ptr);
     return kernel_ptr;
 }
 
